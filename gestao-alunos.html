@@ -51,26 +51,33 @@ const Icon = ({ children, size = 16, color = "currentColor", strokeWidth = 2 }) 
 const Plus = (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Icon>;
 const X = (p) => <Icon {...p}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></Icon>;
 const Trash2 = (p) => <Icon {...p}><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></Icon>;
-const Phone = (p) => <Icon {...p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></Icon>;
-const Dumbbell = (p) => <Icon {...p}><path d="M6.5 6.5 17.5 17.5" /><path d="M14 4l6 6" /><path d="M4 14l6 6" /><path d="M2 8l4-4" /><path d="M20 16l-4 4" /><path d="M12 4l4 4" /><path d="M4 12l4 4" /></Icon>;
+const Clock = (p) => <Icon {...p}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></Icon>;
+const Dumbbell = (p) => <Icon {...p}><path d="M6.5 6.5 17.5 17.5" /><path d="M14 4l6 6" /><path d="M4 14l6 6" /><path d="M2 8l4-4" /><path d="M20 16l-4 4" /><path d="M12 4l4 4" /></Icon>;
 const Check = (p) => <Icon {...p}><polyline points="20 6 9 17 4 12" /></Icon>;
+const CalendarIcon = (p) => <Icon {...p}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></Icon>;
 
 /* ---------- data ---------- */
 const DAYS = [
-  { key: "seg", label: "SEG" }, { key: "ter", label: "TER" }, { key: "qua", label: "QUA" },
-  { key: "qui", label: "QUI" }, { key: "sex", label: "SEX" }, { key: "sab", label: "SÁB" }, { key: "dom", label: "DOM" },
+  { key: "seg", label: "SEG", full: "Segunda" }, { key: "ter", label: "TER", full: "Terça" },
+  { key: "qua", label: "QUA", full: "Quarta" }, { key: "qui", label: "QUI", full: "Quinta" },
+  { key: "sex", label: "SEX", full: "Sexta" }, { key: "sab", label: "SÁB", full: "Sábado" },
+  { key: "dom", label: "DOM", full: "Domingo" },
 ];
 const emptyDays = () => DAYS.reduce((acc, d) => ({ ...acc, [d.key]: false }), {});
 const STORAGE_KEY = "pt-alunos-v1";
 const formatBRL = (v) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const MAX_PERSONAL_PER_SLOT = 1;
+const MAX_ASSISTIDO_PER_SLOT = 3;
 
 function App() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showAgenda, setShowAgenda] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ name: "", type: "personal", phone: "", fee: "", days: emptyDays() });
+  const [form, setForm] = useState({ name: "", type: "personal", fee: "", time: "", days: emptyDays() });
   const [saveError, setSaveError] = useState(false);
+  const [formError, setFormError] = useState("");
   const [filterPending, setFilterPending] = useState(false);
 
   useEffect(() => {
@@ -96,20 +103,44 @@ function App() {
 
   function openNew() {
     setEditingId(null);
-    setForm({ name: "", type: "personal", phone: "", fee: "", days: emptyDays() });
+    setFormError("");
+    setForm({ name: "", type: "personal", fee: "", time: "", days: emptyDays() });
     setShowForm(true);
   }
   function openEdit(s) {
     setEditingId(s.id);
-    setForm({ name: s.name, type: s.type, phone: s.phone || "", fee: s.fee ?? "", days: { ...s.days } });
+    setFormError("");
+    setForm({ name: s.name, type: s.type, fee: s.fee ?? "", time: s.time || "", days: { ...s.days } });
     setShowForm(true);
   }
   function toggleDay(key) {
     setForm((f) => ({ ...f, days: { ...f.days, [key]: !f.days[key] } }));
   }
+
+  // ---- capacidade de horário: 1 personal + até 3 assistidos por (dia, horário) ----
+  function slotOccupants(dayKey, time, excludeId) {
+    return students.filter((s) => s.id !== excludeId && s.time === time && s.days[dayKey]);
+  }
+  function slotHasSpace(dayKey, time, type, excludeId) {
+    const occ = slotOccupants(dayKey, time, excludeId);
+    if (type === "personal") return occ.filter((o) => o.type === "personal").length < MAX_PERSONAL_PER_SLOT;
+    return occ.filter((o) => o.type === "assistido").length < MAX_ASSISTIDO_PER_SLOT;
+  }
+
   function saveForm() {
-    if (!form.name.trim()) return;
+    if (!form.name.trim()) { setFormError("Digite o nome do aluno."); return; }
     const fee = Number(form.fee) || 0;
+
+    if (form.time) {
+      const conflictDay = DAYS.find((d) => form.days[d.key] && !slotHasSpace(d.key, form.time, form.type, editingId));
+      if (conflictDay) {
+        const label = form.type === "personal" ? "já tem 1 personal" : "já tem 3 assistidos";
+        setFormError(`${conflictDay.full} às ${form.time} ${label} nesse horário.`);
+        return;
+      }
+    }
+    setFormError("");
+
     if (editingId) {
       persist(students.map((s) => (s.id === editingId ? { ...s, ...form, fee } : s)));
     } else {
@@ -131,6 +162,13 @@ function App() {
     persist(students.map((st) => (st.id === s.id ? { ...st, payments } : st)));
   }
 
+  const personalStudents = students.filter((s) => s.type === "personal");
+  const assistidoStudents = students.filter((s) => s.type === "assistido");
+  const personalCount = personalStudents.length;
+  const assistidoCount = assistidoStudents.length;
+  const personalValue = personalStudents.reduce((sum, s) => sum + (s.fee || 0), 0);
+  const assistidoValue = assistidoStudents.reduce((sum, s) => sum + (s.fee || 0), 0);
+
   const weeklyTotal = (s) => Object.values(s.days).filter(Boolean).length;
   const grandTotal = students.reduce((sum, s) => sum + weeklyTotal(s), 0);
   const dayCounts = DAYS.map((d) => ({ ...d, count: students.filter((s) => s.days[d.key]).length }));
@@ -143,6 +181,19 @@ function App() {
   const pendingCount = students.filter((s) => !isPaid(s)).length;
   const pct = expected > 0 ? Math.round((received / expected) * 100) : 0;
   const visibleStudents = filterPending ? students.filter((s) => !isPaid(s)) : students;
+
+  // ---- agenda: dias com alunos, agrupados por horário ----
+  const agendaDays = DAYS.map((d) => {
+    const dayStudents = students.filter((s) => s.days[d.key]);
+    const slots = {};
+    dayStudents.forEach((s) => {
+      const t = s.time || "sem horário";
+      if (!slots[t]) slots[t] = [];
+      slots[t].push(s);
+    });
+    const times = Object.keys(slots).sort();
+    return { ...d, times, slots };
+  }).filter((d) => d.times.length > 0);
 
   return (
     <div style={styles.app}>
@@ -159,6 +210,11 @@ function App() {
           <div style={styles.statBox}>
             <div className="pt-mono" style={styles.statNum}>{students.length}</div>
             <div style={styles.statLabel}>alunos ativos</div>
+            {students.length > 0 && (
+              <div className="pt-mono" style={styles.statSplit}>
+                <span style={{ color: "#FF7A33" }}>{personalCount}</span> pers · <span style={{ color: "#4FA9E0" }}>{assistidoCount}</span> assist
+              </div>
+            )}
           </div>
           <div style={styles.statBox}>
             <div className="pt-mono" style={styles.statNum}>{grandTotal}</div>
@@ -172,6 +228,7 @@ function App() {
           </div>
         </div>
 
+        {/* Painel financeiro do mês */}
         <div style={styles.moneyPanel}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
             <span className="pt-body" style={{ fontSize: 11.5, letterSpacing: 1, color: "#9BA3A8", textTransform: "uppercase" }}>
@@ -200,6 +257,16 @@ function App() {
           <div style={styles.progressTrack}>
             <div style={{ ...styles.progressFill, width: `${pct}%` }} />
           </div>
+          {students.length > 0 && (
+            <div style={styles.typeSplitRow}>
+              <span className="pt-mono" style={{ fontSize: 11, color: "#FF7A33" }}>
+                Personal: {formatBRL(personalValue)}
+              </span>
+              <span className="pt-mono" style={{ fontSize: 11, color: "#4FA9E0" }}>
+                Assistido: {formatBRL(assistidoValue)}
+              </span>
+            </div>
+          )}
         </div>
 
         {students.length > 0 && (
@@ -214,6 +281,12 @@ function App() {
               </div>
             ))}
           </div>
+        )}
+
+        {agendaDays.length > 0 && (
+          <button onClick={() => setShowAgenda(true)} className="chip pt-body" style={styles.agendaBtn}>
+            <CalendarIcon size={14} style={{ marginRight: 6 }} />Ver agenda de horários
+          </button>
         )}
       </div>
 
@@ -266,11 +339,13 @@ function App() {
                     {s.type === "personal" ? "Personal" : "Assistido"}
                   </span>
                 </div>
-                {s.phone && (
-                  <div className="pt-body" style={styles.phone}>
-                    <Phone size={11} style={{ marginRight: 4 }} />{s.phone}
-                  </div>
-                )}
+                <div style={{ display: "flex", gap: 12, marginTop: 3, flexWrap: "wrap" }}>
+                  {s.time && (
+                    <div className="pt-body pt-mono" style={styles.metaLine}>
+                      <Clock size={11} style={{ marginRight: 4 }} />{s.time}
+                    </div>
+                  )}
+                </div>
               </div>
               <button onClick={(e) => { e.stopPropagation(); removeStudent(s.id); }} style={styles.trashBtn} aria-label={`Remover ${s.name}`}>
                 <Trash2 size={15} color="#6B7378" />
@@ -312,6 +387,7 @@ function App() {
         <Plus size={26} color="#1B1F22" strokeWidth={2.5} />
       </button>
 
+      {/* Form sheet */}
       {showForm && (
         <div style={styles.overlay} onClick={() => setShowForm(false)}>
           <div className="sheet-enter" style={styles.sheet} onClick={(e) => e.stopPropagation()}>
@@ -339,16 +415,19 @@ function App() {
               ))}
             </div>
 
-            <label className="pt-body" style={styles.fieldLabel}>Telefone (opcional)</label>
-            <input className="pt-body" style={styles.input} value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="(11) 90000-0000" />
+            <label className="pt-body" style={styles.fieldLabel}>Horário (opcional)</label>
+            <input className="pt-body" style={styles.input} type="time" value={form.time}
+              onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))} />
+            <div className="pt-body" style={{ fontSize: 11, color: "#6B7378", marginTop: -8, marginBottom: 14 }}>
+              Com horário preenchido, o app avisa se o slot já estiver cheio (1 personal ou 3 assistidos).
+            </div>
 
             <label className="pt-body" style={styles.fieldLabel}>Valor mensal (R$)</label>
             <input className="pt-body" style={styles.input} type="number" inputMode="decimal" value={form.fee}
               onChange={(e) => setForm((f) => ({ ...f, fee: e.target.value }))} placeholder="0,00" />
 
             <label className="pt-body" style={styles.fieldLabel}>Dias que vai treinar</label>
-            <div style={{ display: "flex", gap: 6, marginBottom: 22, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
               {DAYS.map((d) => (
                 <button key={d.key} onClick={() => toggleDay(d.key)} className="chip pt-mono" style={{
                   ...styles.dayToggle,
@@ -360,12 +439,56 @@ function App() {
               ))}
             </div>
 
+            {formError && (
+              <div className="pt-body" style={styles.formErrorBox}>{formError}</div>
+            )}
+
             <button onClick={saveForm} className="pt-display" style={styles.saveBtn}>SALVAR</button>
             {saveError && (
               <div className="pt-body" style={{ color: "#E05252", fontSize: 12, marginTop: 8, textAlign: "center" }}>
                 Não deu pra salvar agora. Tenta de novo.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Agenda sheet */}
+      {showAgenda && (
+        <div style={styles.overlay} onClick={() => setShowAgenda(false)}>
+          <div className="sheet-enter" style={styles.sheet} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <span className="pt-display" style={{ fontSize: 18, letterSpacing: 0.5, color: "#ECEEEF" }}>AGENDA DE HORÁRIOS</span>
+              <button onClick={() => setShowAgenda(false)} style={styles.closeBtn}><X size={18} color="#9BA3A8" /></button>
+            </div>
+
+            {agendaDays.map((d) => (
+              <div key={d.key} style={{ marginBottom: 18 }}>
+                <div className="pt-display" style={{ fontSize: 13, letterSpacing: 1, color: "#FF7A33", marginBottom: 8 }}>
+                  {d.full.toUpperCase()}
+                </div>
+                {d.times.map((t) => {
+                  const occ = d.slots[t];
+                  const pCount = occ.filter((o) => o.type === "personal").length;
+                  const aCount = occ.filter((o) => o.type === "assistido").length;
+                  return (
+                    <div key={t} style={styles.agendaSlot}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span className="pt-mono" style={{ fontSize: 13, color: "#ECEEEF", fontWeight: 700 }}>{t}</span>
+                        <span className="pt-mono" style={{ fontSize: 10.5, color: "#6B7378" }}>
+                          {pCount}/{MAX_PERSONAL_PER_SLOT} pers · {aCount}/{MAX_ASSISTIDO_PER_SLOT} assist
+                        </span>
+                      </div>
+                      {occ.map((o) => (
+                        <div key={o.id} className="pt-body" style={{ fontSize: 12.5, color: "#9BA3A8", padding: "2px 0" }}>
+                          <span style={{ color: o.type === "personal" ? "#FF7A33" : "#4FA9E0" }}>●</span> {o.name}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -381,11 +504,13 @@ const styles = {
   statBox: { background: "#262B2F", borderRadius: 12, padding: "10px 8px", textAlign: "center" },
   statNum: { fontSize: 22, fontWeight: 700, color: "#ECEEEF" },
   statLabel: { fontSize: 10.5, color: "#9BA3A8", marginTop: 2 },
+  statSplit: { fontSize: 10, color: "#6B7378", marginTop: 4 },
   moneyPanel: { background: "#1F2A24", border: "1px solid #2B3A32", borderRadius: 14, padding: "14px 14px 12px", marginTop: 10 },
   moneyRow: { display: "flex", justifyContent: "space-between", gap: 8 },
   moneyNum: { fontSize: 16.5, fontWeight: 700 },
   progressTrack: { height: 6, background: "#2B3A32", borderRadius: 6, marginTop: 12, overflow: "hidden" },
   progressFill: { height: "100%", background: "linear-gradient(90deg, #7CC576, #9AD98F)", borderRadius: 6, transition: "width 0.3s ease" },
+  typeSplitRow: { display: "flex", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTop: "1px solid #2B3A32" },
   filterChip: { border: "none", borderRadius: 20, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" },
   loadRow: { display: "flex", justifyContent: "space-between", marginTop: 18, height: 54, alignItems: "flex-end", gap: 6 },
   loadCol: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end" },
@@ -393,11 +518,12 @@ const styles = {
   loadTrack: { width: "60%", height: 28, background: "#262B2F", borderRadius: 4, display: "flex", alignItems: "flex-end", overflow: "hidden" },
   loadFill: { width: "100%", background: "linear-gradient(180deg, #FF9457 0%, #FF7A33 100%)", borderRadius: "4px 4px 0 0" },
   loadLabel: { fontSize: 9.5, color: "#6B7378", marginTop: 4, letterSpacing: 0.5 },
+  agendaBtn: { width: "100%", marginTop: 14, background: "#262B2F", border: "1px solid #33393E", borderRadius: 10, padding: "10px 0", color: "#ECEEEF", fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
   empty: { textAlign: "center", padding: "50px 20px" },
   card: { background: "#262B2F", borderRadius: 14, padding: "14px 14px 12px", marginBottom: 10, cursor: "pointer" },
   cardName: { fontSize: 16.5, fontWeight: 600, color: "#ECEEEF" },
   badge: { fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 20 },
-  phone: { fontSize: 12, color: "#9BA3A8", marginTop: 3, display: "flex", alignItems: "center" },
+  metaLine: { fontSize: 12, color: "#9BA3A8", display: "flex", alignItems: "center" },
   trashBtn: { background: "none", border: "none", padding: 4, cursor: "pointer" },
   cardBottom: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 },
   dayDot: { width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, fontFamily: "'Inter', sans-serif" },
@@ -412,7 +538,9 @@ const styles = {
   input: { width: "100%", background: "#2F363B", border: "1px solid #3A4147", borderRadius: 10, padding: "11px 12px", color: "#ECEEEF", fontSize: 15, marginBottom: 14 },
   typeBtn: { flex: 1, border: "none", borderRadius: 10, padding: "10px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer" },
   dayToggle: { border: "none", borderRadius: 8, padding: "8px 0", width: 40, fontSize: 11, fontWeight: 700, cursor: "pointer" },
+  formErrorBox: { background: "rgba(224,82,82,0.12)", border: "1px solid rgba(224,82,82,0.3)", borderRadius: 10, padding: "10px 12px", color: "#E05252", fontSize: 12.5, marginBottom: 14 },
   saveBtn: { width: "100%", background: "#FF7A33", border: "none", borderRadius: 12, padding: "14px 0", color: "#1B1F22", fontSize: 15, letterSpacing: 1, fontWeight: 600, cursor: "pointer" },
+  agendaSlot: { background: "#262B2F", borderRadius: 10, padding: "10px 12px", marginBottom: 8 },
 };
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
