@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Gestão de Alunos</title>
+
+<!-- iOS "Add to Home Screen" behavior: opens full-screen, no browser chrome -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Alunos" />
+<meta name="theme-color" content="#1B1F22" />
+
+<!-- React + Babel (so this stays a single portable file, no build step) -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #1B1F22; overscroll-behavior-y: none; }
+  #root { min-height: 100vh; }
+  .pt-display { font-family: 'Oswald', sans-serif; }
+  .pt-mono { font-family: 'JetBrains Mono', monospace; }
+  .pt-body { font-family: 'Inter', sans-serif; }
+  .chip { transition: all 0.15s ease; }
+  .chip:active { transform: scale(0.93); }
+  .sheet-enter { animation: slideUp 0.25s ease-out; }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .card-in { animation: fadeIn 0.2s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  input:focus, button:focus-visible { outline: 2px solid #FF7A33; outline-offset: 2px; }
+  ::placeholder { color: #6B7378; }
+  button { font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+/* ---------- tiny inline icons (no external icon library needed) ---------- */
+const Icon = ({ children, size = 16, color = "currentColor", strokeWidth = 2 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
+       strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    {children}
+  </svg>
+);
+const Plus = (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Icon>;
+const X = (p) => <Icon {...p}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></Icon>;
+const Trash2 = (p) => <Icon {...p}><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></Icon>;
+const Phone = (p) => <Icon {...p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></Icon>;
+const Dumbbell = (p) => <Icon {...p}><path d="M6.5 6.5 17.5 17.5" /><path d="M14 4l6 6" /><path d="M4 14l6 6" /><path d="M2 8l4-4" /><path d="M20 16l-4 4" /><path d="M12 4l4 4" /><path d="M4 12l4 4" /></Icon>;
+const Check = (p) => <Icon {...p}><polyline points="20 6 9 17 4 12" /></Icon>;
+
+/* ---------- data ---------- */
+const DAYS = [
+  { key: "seg", label: "SEG" }, { key: "ter", label: "TER" }, { key: "qua", label: "QUA" },
+  { key: "qui", label: "QUI" }, { key: "sex", label: "SEX" }, { key: "sab", label: "SÁB" }, { key: "dom", label: "DOM" },
+];
+const emptyDays = () => DAYS.reduce((acc, d) => ({ ...acc, [d.key]: false }), {});
+const STORAGE_KEY = "pt-alunos-v1";
+const formatBRL = (v) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+function App() {
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState({ name: "", type: "personal", phone: "", fee: "", days: emptyDays() });
+  const [saveError, setSaveError] = useState(false);
+  const [filterPending, setFilterPending] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setStudents(JSON.parse(raw));
+    } catch (e) {
+      // sem dados salvos ainda — tudo bem
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  function persist(next) {
+    setStudents(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setSaveError(false);
+    } catch (e) {
+      setSaveError(true);
+    }
+  }
+
+  function openNew() {
+    setEditingId(null);
+    setForm({ name: "", type: "personal", phone: "", fee: "", days: emptyDays() });
+    setShowForm(true);
+  }
+  function openEdit(s) {
+    setEditingId(s.id);
+    setForm({ name: s.name, type: s.type, phone: s.phone || "", fee: s.fee ?? "", days: { ...s.days } });
+    setShowForm(true);
+  }
+  function toggleDay(key) {
+    setForm((f) => ({ ...f, days: { ...f.days, [key]: !f.days[key] } }));
+  }
+  function saveForm() {
+    if (!form.name.trim()) return;
+    const fee = Number(form.fee) || 0;
+    if (editingId) {
+      persist(students.map((s) => (s.id === editingId ? { ...s, ...form, fee } : s)));
+    } else {
+      persist([...students, { id: Date.now().toString(), ...form, fee, payments: {} }]);
+    }
+    setShowForm(false);
+  }
+  function removeStudent(id) {
+    persist(students.filter((s) => s.id !== id));
+  }
+
+  const today = new Date();
+  const monthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  const monthName = today.toLocaleDateString("pt-BR", { month: "long" });
+
+  const isPaid = (s) => !!(s.payments && s.payments[monthKey]);
+  function togglePaid(s) {
+    const payments = { ...(s.payments || {}), [monthKey]: !isPaid(s) };
+    persist(students.map((st) => (st.id === s.id ? { ...st, payments } : st)));
+  }
+
+  const weeklyTotal = (s) => Object.values(s.days).filter(Boolean).length;
+  const grandTotal = students.reduce((sum, s) => sum + weeklyTotal(s), 0);
+  const dayCounts = DAYS.map((d) => ({ ...d, count: students.filter((s) => s.days[d.key]).length }));
+  const maxDay = Math.max(1, ...dayCounts.map((d) => d.count));
+  const busiest = dayCounts.reduce((a, b) => (b.count > a.count ? b : a), dayCounts[0]);
+
+  const expected = students.reduce((sum, s) => sum + (s.fee || 0), 0);
+  const received = students.reduce((sum, s) => sum + (isPaid(s) ? s.fee || 0 : 0), 0);
+  const pending = expected - received;
+  const pendingCount = students.filter((s) => !isPaid(s)).length;
+  const pct = expected > 0 ? Math.round((received / expected) * 100) : 0;
+  const visibleStudents = filterPending ? students.filter((s) => !isPaid(s)) : students;
+
+  return (
+    <div style={styles.app}>
+      {/* Header */}
+      <div style={styles.header}>
+        <div className="pt-body" style={{ fontSize: 12, letterSpacing: 1.5, color: "#9BA3A8", marginBottom: 4 }}>
+          PAINEL DO PERSONAL
+        </div>
+        <h1 className="pt-display" style={styles.title}>
+          GESTÃO DE <span style={{ color: "#FF7A33" }}>ALUNOS</span>
+        </h1>
+
+        <div style={{ ...styles.statsGrid, gridTemplateColumns: "1fr 1fr 1fr" }}>
+          <div style={styles.statBox}>
+            <div className="pt-mono" style={styles.statNum}>{students.length}</div>
+            <div style={styles.statLabel}>alunos ativos</div>
+          </div>
+          <div style={styles.statBox}>
+            <div className="pt-mono" style={styles.statNum}>{grandTotal}</div>
+            <div style={styles.statLabel}>sessões / semana</div>
+          </div>
+          <div style={styles.statBox}>
+            <div className="pt-mono" style={{ ...styles.statNum, fontSize: 20 }}>
+              {students.length ? busiest.label : "—"}
+            </div>
+            <div style={styles.statLabel}>dia mais cheio</div>
+          </div>
+        </div>
+
+        <div style={styles.moneyPanel}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+            <span className="pt-body" style={{ fontSize: 11.5, letterSpacing: 1, color: "#9BA3A8", textTransform: "uppercase" }}>
+              Cobrança de {monthName}
+            </span>
+            {pendingCount > 0 && (
+              <span className="pt-body" style={{ fontSize: 11, color: "#E05252" }}>
+                {pendingCount} pendente{pendingCount > 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+          <div style={styles.moneyRow}>
+            <div>
+              <div className="pt-mono" style={{ ...styles.moneyNum, color: "#7CC576" }}>{formatBRL(received)}</div>
+              <div style={styles.statLabel}>recebido</div>
+            </div>
+            <div>
+              <div className="pt-mono" style={{ ...styles.moneyNum, color: pending > 0 ? "#E05252" : "#9BA3A8" }}>{formatBRL(pending)}</div>
+              <div style={styles.statLabel}>a receber</div>
+            </div>
+            <div>
+              <div className="pt-mono" style={{ ...styles.moneyNum, color: "#ECEEEF" }}>{formatBRL(expected)}</div>
+              <div style={styles.statLabel}>previsto</div>
+            </div>
+          </div>
+          <div style={styles.progressTrack}>
+            <div style={{ ...styles.progressFill, width: `${pct}%` }} />
+          </div>
+        </div>
+
+        {students.length > 0 && (
+          <div style={styles.loadRow}>
+            {dayCounts.map((d) => (
+              <div key={d.key} style={styles.loadCol}>
+                <div className="pt-mono" style={styles.loadCount}>{d.count || ""}</div>
+                <div style={styles.loadTrack}>
+                  <div style={{ ...styles.loadFill, height: `${(d.count / maxDay) * 100}%`, opacity: d.count === 0 ? 0.15 : 1 }} />
+                </div>
+                <div style={styles.loadLabel}>{d.label[0]}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* List */}
+      <div style={{ padding: "16px 16px 100px" }}>
+        {loading && (
+          <div className="pt-body" style={{ color: "#9BA3A8", textAlign: "center", padding: 40 }}>Carregando...</div>
+        )}
+
+        {!loading && students.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <button onClick={() => setFilterPending(false)} className="chip pt-body"
+              style={{ ...styles.filterChip, background: !filterPending ? "#2F363B" : "transparent", color: !filterPending ? "#ECEEEF" : "#6B7378" }}>
+              Todos ({students.length})
+            </button>
+            <button onClick={() => setFilterPending(true)} className="chip pt-body"
+              style={{ ...styles.filterChip, background: filterPending ? "rgba(224,82,82,0.15)" : "transparent", color: filterPending ? "#E05252" : "#6B7378" }}>
+              Pendentes ({pendingCount})
+            </button>
+          </div>
+        )}
+
+        {!loading && students.length === 0 && (
+          <div style={styles.empty}>
+            <Dumbbell size={28} color="#4A5257" />
+            <div className="pt-body" style={{ color: "#9BA3A8", marginTop: 12, fontSize: 14, lineHeight: 1.5 }}>
+              Nenhum aluno cadastrado ainda.<br />Toque em + para adicionar o primeiro.
+            </div>
+          </div>
+        )}
+
+        {!loading && students.length > 0 && visibleStudents.length === 0 && (
+          <div style={styles.empty}>
+            <Check size={26} color="#7CC576" />
+            <div className="pt-body" style={{ color: "#9BA3A8", marginTop: 12, fontSize: 14 }}>Ninguém pendente esse mês.</div>
+          </div>
+        )}
+
+        {visibleStudents.map((s) => (
+          <div key={s.id} className="card-in" style={styles.card} onClick={() => openEdit(s)}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span className="pt-display" style={styles.cardName}>{s.name}</span>
+                  <span className="pt-body" style={{
+                    ...styles.badge,
+                    background: s.type === "personal" ? "rgba(255,122,51,0.15)" : "rgba(79,169,224,0.15)",
+                    color: s.type === "personal" ? "#FF7A33" : "#4FA9E0",
+                  }}>
+                    {s.type === "personal" ? "Personal" : "Assistido"}
+                  </span>
+                </div>
+                {s.phone && (
+                  <div className="pt-body" style={styles.phone}>
+                    <Phone size={11} style={{ marginRight: 4 }} />{s.phone}
+                  </div>
+                )}
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); removeStudent(s.id); }} style={styles.trashBtn} aria-label={`Remover ${s.name}`}>
+                <Trash2 size={15} color="#6B7378" />
+              </button>
+            </div>
+
+            <div style={styles.cardBottom}>
+              <div style={{ display: "flex", gap: 5 }}>
+                {DAYS.map((d) => (
+                  <div key={d.key} style={{
+                    ...styles.dayDot,
+                    background: s.days[d.key] ? "#FF7A33" : "#33393E",
+                    color: s.days[d.key] ? "#1B1F22" : "#6B7378",
+                  }}>
+                    {d.label[0]}
+                  </div>
+                ))}
+              </div>
+              <div className="pt-mono" style={styles.totalNum}>
+                {weeklyTotal(s)}<span style={{ fontSize: 11, color: "#6B7378" }}>/sem</span>
+              </div>
+            </div>
+
+            <div style={styles.moneyLine}>
+              <span className="pt-mono" style={{ fontSize: 14.5, fontWeight: 700, color: "#ECEEEF" }}>{formatBRL(s.fee)}</span>
+              <button onClick={(e) => { e.stopPropagation(); togglePaid(s); }} className="chip pt-body" style={{
+                ...styles.payChip,
+                background: isPaid(s) ? "rgba(124,197,118,0.15)" : "rgba(224,82,82,0.15)",
+                color: isPaid(s) ? "#7CC576" : "#E05252",
+              }}>
+                {isPaid(s) ? <><Check size={12} style={{ marginRight: 3 }} />Pago</> : "Pendente"}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button onClick={openNew} style={styles.fab} aria-label="Adicionar aluno">
+        <Plus size={26} color="#1B1F22" strokeWidth={2.5} />
+      </button>
+
+      {showForm && (
+        <div style={styles.overlay} onClick={() => setShowForm(false)}>
+          <div className="sheet-enter" style={styles.sheet} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <span className="pt-display" style={{ fontSize: 18, letterSpacing: 0.5, color: "#ECEEEF" }}>
+                {editingId ? "EDITAR ALUNO" : "NOVO ALUNO"}
+              </span>
+              <button onClick={() => setShowForm(false)} style={styles.closeBtn}><X size={18} color="#9BA3A8" /></button>
+            </div>
+
+            <label className="pt-body" style={styles.fieldLabel}>Nome</label>
+            <input className="pt-body" style={styles.input} value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Nome do aluno" autoFocus />
+
+            <label className="pt-body" style={styles.fieldLabel}>Tipo</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {["personal", "assistido"].map((t) => (
+                <button key={t} onClick={() => setForm((f) => ({ ...f, type: t }))} className="chip pt-body" style={{
+                  ...styles.typeBtn,
+                  background: form.type === t ? "#FF7A33" : "#2F363B",
+                  color: form.type === t ? "#1B1F22" : "#9BA3A8",
+                }}>
+                  {t === "personal" ? "Personal" : "Assistido"}
+                </button>
+              ))}
+            </div>
+
+            <label className="pt-body" style={styles.fieldLabel}>Telefone (opcional)</label>
+            <input className="pt-body" style={styles.input} value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="(11) 90000-0000" />
+
+            <label className="pt-body" style={styles.fieldLabel}>Valor mensal (R$)</label>
+            <input className="pt-body" style={styles.input} type="number" inputMode="decimal" value={form.fee}
+              onChange={(e) => setForm((f) => ({ ...f, fee: e.target.value }))} placeholder="0,00" />
+
+            <label className="pt-body" style={styles.fieldLabel}>Dias que vai treinar</label>
+            <div style={{ display: "flex", gap: 6, marginBottom: 22, flexWrap: "wrap" }}>
+              {DAYS.map((d) => (
+                <button key={d.key} onClick={() => toggleDay(d.key)} className="chip pt-mono" style={{
+                  ...styles.dayToggle,
+                  background: form.days[d.key] ? "#FF7A33" : "#2F363B",
+                  color: form.days[d.key] ? "#1B1F22" : "#9BA3A8",
+                }}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+
+            <button onClick={saveForm} className="pt-display" style={styles.saveBtn}>SALVAR</button>
+            {saveError && (
+              <div className="pt-body" style={{ color: "#E05252", fontSize: 12, marginTop: 8, textAlign: "center" }}>
+                Não deu pra salvar agora. Tenta de novo.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const styles = {
+  app: { minHeight: "100vh", background: "#1B1F22", color: "#ECEEEF", fontFamily: "'Inter', sans-serif" },
+  header: { padding: "20px 16px 18px", background: "linear-gradient(180deg, #21262A 0%, #1B1F22 100%)", borderBottom: "1px solid #2A3138" },
+  title: { margin: 0, fontSize: 26, letterSpacing: 0.5, fontWeight: 700, color: "#ECEEEF" },
+  statsGrid: { display: "grid", gap: 8, marginTop: 16 },
+  statBox: { background: "#262B2F", borderRadius: 12, padding: "10px 8px", textAlign: "center" },
+  statNum: { fontSize: 22, fontWeight: 700, color: "#ECEEEF" },
+  statLabel: { fontSize: 10.5, color: "#9BA3A8", marginTop: 2 },
+  moneyPanel: { background: "#1F2A24", border: "1px solid #2B3A32", borderRadius: 14, padding: "14px 14px 12px", marginTop: 10 },
+  moneyRow: { display: "flex", justifyContent: "space-between", gap: 8 },
+  moneyNum: { fontSize: 16.5, fontWeight: 700 },
+  progressTrack: { height: 6, background: "#2B3A32", borderRadius: 6, marginTop: 12, overflow: "hidden" },
+  progressFill: { height: "100%", background: "linear-gradient(90deg, #7CC576, #9AD98F)", borderRadius: 6, transition: "width 0.3s ease" },
+  filterChip: { border: "none", borderRadius: 20, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" },
+  loadRow: { display: "flex", justifyContent: "space-between", marginTop: 18, height: 54, alignItems: "flex-end", gap: 6 },
+  loadCol: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end" },
+  loadCount: { fontSize: 10, color: "#9BA3A8", marginBottom: 2 },
+  loadTrack: { width: "60%", height: 28, background: "#262B2F", borderRadius: 4, display: "flex", alignItems: "flex-end", overflow: "hidden" },
+  loadFill: { width: "100%", background: "linear-gradient(180deg, #FF9457 0%, #FF7A33 100%)", borderRadius: "4px 4px 0 0" },
+  loadLabel: { fontSize: 9.5, color: "#6B7378", marginTop: 4, letterSpacing: 0.5 },
+  empty: { textAlign: "center", padding: "50px 20px" },
+  card: { background: "#262B2F", borderRadius: 14, padding: "14px 14px 12px", marginBottom: 10, cursor: "pointer" },
+  cardName: { fontSize: 16.5, fontWeight: 600, color: "#ECEEEF" },
+  badge: { fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 20 },
+  phone: { fontSize: 12, color: "#9BA3A8", marginTop: 3, display: "flex", alignItems: "center" },
+  trashBtn: { background: "none", border: "none", padding: 4, cursor: "pointer" },
+  cardBottom: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 },
+  dayDot: { width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, fontFamily: "'Inter', sans-serif" },
+  totalNum: { fontSize: 17, fontWeight: 700, color: "#FF7A33" },
+  moneyLine: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, paddingTop: 10, borderTop: "1px solid #2F363B" },
+  payChip: { border: "none", borderRadius: 8, padding: "5px 10px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center" },
+  fab: { position: "fixed", right: 20, bottom: 24, width: 54, height: 54, borderRadius: "50%", background: "#FF7A33", border: "none", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 18px rgba(255,122,51,0.4)", cursor: "pointer" },
+  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "flex-end", zIndex: 50 },
+  sheet: { background: "#21262A", width: "100%", borderRadius: "20px 20px 0 0", padding: "20px 18px 28px", maxHeight: "88vh", overflowY: "auto" },
+  closeBtn: { background: "#2F363B", border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer" },
+  fieldLabel: { fontSize: 11.5, color: "#9BA3A8", display: "block", marginBottom: 6, marginTop: 2 },
+  input: { width: "100%", background: "#2F363B", border: "1px solid #3A4147", borderRadius: 10, padding: "11px 12px", color: "#ECEEEF", fontSize: 15, marginBottom: 14 },
+  typeBtn: { flex: 1, border: "none", borderRadius: 10, padding: "10px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer" },
+  dayToggle: { border: "none", borderRadius: 8, padding: "8px 0", width: 40, fontSize: 11, fontWeight: 700, cursor: "pointer" },
+  saveBtn: { width: "100%", background: "#FF7A33", border: "none", borderRadius: 12, padding: "14px 0", color: "#1B1F22", fontSize: 15, letterSpacing: 1, fontWeight: 600, cursor: "pointer" },
+};
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
