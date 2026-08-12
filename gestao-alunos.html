@@ -64,6 +64,8 @@ const DAYS = [
   { key: "dom", label: "DOM", full: "Domingo" },
 ];
 const emptyDays = () => DAYS.reduce((acc, d) => ({ ...acc, [d.key]: false }), {});
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+const MINUTES = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
 const STORAGE_KEY = "pt-alunos-v1";
 const formatBRL = (v) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const MAX_PERSONAL_PER_SLOT = 1;
@@ -210,11 +212,6 @@ function App() {
           <div style={styles.statBox}>
             <div className="pt-mono" style={styles.statNum}>{students.length}</div>
             <div style={styles.statLabel}>alunos ativos</div>
-            {students.length > 0 && (
-              <div className="pt-mono" style={styles.statSplit}>
-                <span style={{ color: "#FF7A33" }}>{personalCount}</span> pers · <span style={{ color: "#4FA9E0" }}>{assistidoCount}</span> assist
-              </div>
-            )}
           </div>
           <div style={styles.statBox}>
             <div className="pt-mono" style={styles.statNum}>{grandTotal}</div>
@@ -227,6 +224,22 @@ function App() {
             <div style={styles.statLabel}>dia mais cheio</div>
           </div>
         </div>
+
+        {/* Resumo por tipo: personal x assistido */}
+        {students.length > 0 && (
+          <div style={styles.typeGrid}>
+            <div style={{ ...styles.typeCard, borderColor: "rgba(255,122,51,0.35)" }}>
+              <div className="pt-body" style={{ ...styles.typeLabel, color: "#FF7A33" }}>PERSONAL</div>
+              <div className="pt-mono" style={{ ...styles.typeCount, color: "#FF7A33" }}>{personalCount}</div>
+              <div className="pt-mono" style={styles.typeValue}>{formatBRL(personalValue)}</div>
+            </div>
+            <div style={{ ...styles.typeCard, borderColor: "rgba(79,169,224,0.35)" }}>
+              <div className="pt-body" style={{ ...styles.typeLabel, color: "#4FA9E0" }}>ASSISTIDO</div>
+              <div className="pt-mono" style={{ ...styles.typeCount, color: "#4FA9E0" }}>{assistidoCount}</div>
+              <div className="pt-mono" style={styles.typeValue}>{formatBRL(assistidoValue)}</div>
+            </div>
+          </div>
+        )}
 
         {/* Painel financeiro do mês */}
         <div style={styles.moneyPanel}>
@@ -257,16 +270,6 @@ function App() {
           <div style={styles.progressTrack}>
             <div style={{ ...styles.progressFill, width: `${pct}%` }} />
           </div>
-          {students.length > 0 && (
-            <div style={styles.typeSplitRow}>
-              <span className="pt-mono" style={{ fontSize: 11, color: "#FF7A33" }}>
-                Personal: {formatBRL(personalValue)}
-              </span>
-              <span className="pt-mono" style={{ fontSize: 11, color: "#4FA9E0" }}>
-                Assistido: {formatBRL(assistidoValue)}
-              </span>
-            </div>
-          )}
         </div>
 
         {students.length > 0 && (
@@ -416,9 +419,27 @@ function App() {
             </div>
 
             <label className="pt-body" style={styles.fieldLabel}>Horário (opcional)</label>
-            <input className="pt-body" style={styles.input} type="time" value={form.time}
-              onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))} />
-            <div className="pt-body" style={{ fontSize: 11, color: "#6B7378", marginTop: -8, marginBottom: 14 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+              <select className="pt-mono" style={styles.select} value={form.time.split(":")[0] || ""}
+                onChange={(e) => {
+                  const h = e.target.value;
+                  const m = form.time.split(":")[1] || "00";
+                  setForm((f) => ({ ...f, time: h ? `${h}:${m}` : "" }));
+                }}>
+                <option value="">Hora</option>
+                {HOURS.map((h) => <option key={h} value={h}>{h}h</option>)}
+              </select>
+              <select className="pt-mono" style={styles.select} value={form.time.split(":")[1] || ""}
+                onChange={(e) => {
+                  const m = e.target.value;
+                  const h = form.time.split(":")[0] || "00";
+                  setForm((f) => ({ ...f, time: `${h}:${m}` }));
+                }}>
+                <option value="">Min</option>
+                {MINUTES.map((m) => <option key={m} value={m}>{m}min</option>)}
+              </select>
+            </div>
+            <div className="pt-body" style={{ fontSize: 11, color: "#6B7378", marginBottom: 14 }}>
               Com horário preenchido, o app avisa se o slot já estiver cheio (1 personal ou 3 assistidos).
             </div>
 
@@ -504,13 +525,16 @@ const styles = {
   statBox: { background: "#262B2F", borderRadius: 12, padding: "10px 8px", textAlign: "center" },
   statNum: { fontSize: 22, fontWeight: 700, color: "#ECEEEF" },
   statLabel: { fontSize: 10.5, color: "#9BA3A8", marginTop: 2 },
-  statSplit: { fontSize: 10, color: "#6B7378", marginTop: 4 },
   moneyPanel: { background: "#1F2A24", border: "1px solid #2B3A32", borderRadius: 14, padding: "14px 14px 12px", marginTop: 10 },
   moneyRow: { display: "flex", justifyContent: "space-between", gap: 8 },
   moneyNum: { fontSize: 16.5, fontWeight: 700 },
   progressTrack: { height: 6, background: "#2B3A32", borderRadius: 6, marginTop: 12, overflow: "hidden" },
   progressFill: { height: "100%", background: "linear-gradient(90deg, #7CC576, #9AD98F)", borderRadius: 6, transition: "width 0.3s ease" },
-  typeSplitRow: { display: "flex", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTop: "1px solid #2B3A32" },
+  typeGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 },
+  typeCard: { background: "#262B2F", border: "1px solid", borderRadius: 12, padding: "12px 14px" },
+  typeLabel: { fontSize: 10.5, fontWeight: 700, letterSpacing: 1 },
+  typeCount: { fontSize: 24, fontWeight: 700, marginTop: 4 },
+  typeValue: { fontSize: 13, color: "#ECEEEF", marginTop: 2 },
   filterChip: { border: "none", borderRadius: 20, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" },
   loadRow: { display: "flex", justifyContent: "space-between", marginTop: 18, height: 54, alignItems: "flex-end", gap: 6 },
   loadCol: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end" },
@@ -536,6 +560,7 @@ const styles = {
   closeBtn: { background: "#2F363B", border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer" },
   fieldLabel: { fontSize: 11.5, color: "#9BA3A8", display: "block", marginBottom: 6, marginTop: 2 },
   input: { width: "100%", background: "#2F363B", border: "1px solid #3A4147", borderRadius: 10, padding: "11px 12px", color: "#ECEEEF", fontSize: 15, marginBottom: 14 },
+  select: { flex: 1, background: "#2F363B", border: "1px solid #3A4147", borderRadius: 10, padding: "11px 8px", color: "#ECEEEF", fontSize: 15 },
   typeBtn: { flex: 1, border: "none", borderRadius: 10, padding: "10px 0", fontSize: 13.5, fontWeight: 600, cursor: "pointer" },
   dayToggle: { border: "none", borderRadius: 8, padding: "8px 0", width: 40, fontSize: 11, fontWeight: 700, cursor: "pointer" },
   formErrorBox: { background: "rgba(224,82,82,0.12)", border: "1px solid rgba(224,82,82,0.3)", borderRadius: 10, padding: "10px 12px", color: "#E05252", fontSize: 12.5, marginBottom: 14 },
