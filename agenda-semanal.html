@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Agenda Semanal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#101210;
+    --surface:#1A1D17;
+    --surface-2:#20241C;
+    --accent:#D9A441;
+    --accent-dim:#8a702f;
+    --accent-2:#4E8C82;
+    --danger:#C1473B;
+    --text:#F3F1E7;
+    --text-muted:#8D9186;
+    --border:rgba(243,241,231,0.08);
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;
+    overscroll-behavior-y:none; height:100%;}
+  body{ padding-top:var(--safe-top); padding-bottom:var(--safe-bottom); }
+
+  /* subtle floor texture */
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);
+    opacity:.5;
+  }
+
+  header{
+    position:sticky; top:0; z-index:20;
+    padding:18px 18px 10px;
+    background:linear-gradient(180deg, var(--bg) 70%, rgba(16,18,16,0));
+  }
+  .title-row{display:flex; align-items:baseline; justify-content:space-between; gap:10px;}
+  h1{
+    font-family:'Oswald',sans-serif; font-weight:700; letter-spacing:.06em;
+    text-transform:uppercase; font-size:26px; margin:0; color:var(--text);
+  }
+  .week-label{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--accent);
+    letter-spacing:.08em; text-transform:uppercase; margin-top:2px;
+  }
+  .stopwatch{
+    width:34px; height:34px; border-radius:50%;
+    border:2px solid var(--accent); display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--accent);
+    flex-shrink:0;
+  }
+
+  /* day pills */
+  .day-tabs{
+    display:flex; gap:8px; overflow-x:auto; padding:14px 18px 4px;
+    scrollbar-width:none; position:sticky; top:0; z-index:19;
+  }
+  .day-tabs::-webkit-scrollbar{display:none;}
+  .day-pill{
+    flex:0 0 auto; padding:10px 14px; border-radius:12px;
+    background:var(--surface); border:1px solid var(--border);
+    font-family:'Oswald',sans-serif; font-weight:600; font-size:13px;
+    letter-spacing:.05em; text-transform:uppercase; color:var(--text-muted);
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    transition:transform .12s ease, background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .day-pill .n{font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:500; opacity:.7;}
+  .day-pill.active{
+    background:var(--accent); color:#181307; border-color:var(--accent);
+  }
+  .day-pill.active .n{color:#181307; opacity:.75;}
+  .day-pill:active{transform:scale(.94);}
+  .day-pill.has-people:not(.active){ color:var(--text); border-color:rgba(217,164,65,.35); }
+
+  main{ position:relative; z-index:1; padding:8px 14px 120px; }
+
+  .slot-row{
+    display:flex; align-items:center; gap:12px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:12px 14px; margin-bottom:9px;
+  }
+  .time-badge{
+    font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:14px;
+    color:var(--accent); width:52px; flex-shrink:0; text-align:left;
+    letter-spacing:.02em;
+  }
+  .progress{
+    width:3px; height:26px; border-radius:2px; background:var(--border);
+    flex-shrink:0; position:relative; overflow:hidden;
+  }
+  .progress .fill{
+    position:absolute; bottom:0; left:0; right:0; border-radius:2px;
+    background:var(--accent-2); transition:height .2s ease;
+  }
+  .chips{ display:flex; gap:7px; flex:1; min-width:0; }
+  .chip{
+    flex:1; min-width:0; height:40px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:600; text-align:center; padding:0 4px;
+    border:1px solid var(--border); color:var(--text-muted);
+    background:var(--surface-2); overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+    transition:transform .1s ease;
+  }
+  .chip:active{ transform:scale(.94); }
+  .chip.filled{
+    background:rgba(217,164,65,.14); border-color:rgba(217,164,65,.4); color:var(--text);
+  }
+  .chip.full-row{ }
+  .row-full .chip:not(.filled){ opacity:.35; }
+
+  .remove-row-btn{
+    flex-shrink:0; width:26px; height:26px; border-radius:50%;
+    background:transparent; color:var(--text-muted); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1;
+  }
+  .remove-row-btn:active{ background:var(--danger); color:#fff; border-color:var(--danger); }
+
+  .empty-day{
+    text-align:center; padding:60px 20px; color:var(--text-muted);
+  }
+  .empty-day .big{ font-family:'Oswald',sans-serif; font-size:16px; letter-spacing:.05em; text-transform:uppercase; color:var(--text); margin-bottom:6px;}
+  .empty-day .small{ font-size:13px; line-height:1.5; }
+
+  .add-time-btn{
+    width:100%; padding:14px; border-radius:14px; margin-top:6px;
+    background:var(--surface); border:1px dashed rgba(217,164,65,.4);
+    color:var(--accent); font-family:'Oswald',sans-serif; font-weight:600;
+    font-size:13px; letter-spacing:.06em; text-transform:uppercase;
+  }
+  .add-time-btn:active{ background:var(--surface-2); }
+
+  /* legend */
+  .legend{
+    display:flex; gap:16px; padding:2px 6px 14px; font-size:11px; color:var(--text-muted);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .legend span{ display:flex; align-items:center; gap:5px; }
+  .dot{ width:8px; height:8px; border-radius:50%; }
+
+  /* bottom sheet */
+  .sheet-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50;
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
+  }
+  .sheet-backdrop.open{ opacity:1; pointer-events:auto; }
+  .sheet{
+    position:fixed; left:0; right:0; bottom:0; z-index:51;
+    background:var(--surface-2); border-top:1px solid var(--border);
+    border-radius:20px 20px 0 0; padding:18px 20px calc(24px + var(--safe-bottom));
+    transform:translateY(100%); transition:transform .25s cubic-bezier(.32,.72,0,1);
+  }
+  .sheet.open{ transform:translateY(0); }
+  .sheet-handle{ width:36px; height:4px; border-radius:2px; background:var(--border); margin:0 auto 16px; }
+  .sheet h3{ font-family:'Oswald',sans-serif; text-transform:uppercase; letter-spacing:.05em; font-size:15px; margin:0 0 4px; }
+  .sheet .ctx{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--accent); margin-bottom:16px; }
+  .sheet input[type="text"], .sheet input[type="time"]{
+    width:100%; background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:14px; color:var(--text); font-size:16px;
+    font-family:-apple-system,sans-serif; margin-bottom:12px;
+  }
+  .sheet-actions{ display:flex; gap:10px; margin-top:4px; }
+  .sheet-btn{
+    flex:1; padding:14px; border-radius:12px; border:none;
+    font-family:'Oswald',sans-serif; font-weight:600; letter-spacing:.04em;
+    text-transform:uppercase; font-size:13px;
+  }
+  .sheet-btn.primary{ background:var(--accent); color:#181307; }
+  .sheet-btn.ghost{ background:transparent; color:var(--text-muted); border:1px solid var(--border); }
+  .sheet-btn.remove{ background:rgba(193,71,59,.15); color:var(--danger); border:1px solid rgba(193,71,59,.4); }
+  .sheet-btn:active{ opacity:.7; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-row">
+    <div>
+      <h1>Agenda</h1>
+      <div class="week-label" id="weekLabel">SEMANA · TOQUE PARA MARCAR</div>
+    </div>
+    <div class="stopwatch" id="countBadge">0</div>
+  </div>
+</header>
+
+<div class="day-tabs" id="dayTabs"></div>
+
+<main>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--accent-2)"></span>ocupação do horário</span>
+    <span><span class="dot" style="background:var(--accent)"></span>vaga preenchida</span>
+  </div>
+  <div id="slotsContainer"></div>
+  <button class="add-time-btn" id="addTimeBtn">+ Adicionar horário</button>
+</main>
+
+<div class="sheet-backdrop" id="backdrop"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <h3 id="sheetTitle">Adicionar nome</h3>
+  <div class="ctx" id="sheetCtx"></div>
+  <input type="text" id="nameInput" placeholder="Nome" maxlength="24" autocomplete="off">
+  <div class="sheet-actions">
+    <button class="sheet-btn ghost" id="cancelBtn">Cancelar</button>
+    <button class="sheet-btn remove" id="removeBtn" style="display:none;">Remover</button>
+    <button class="sheet-btn primary" id="saveBtn">Salvar</button>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="backdropTime"></div>
+<div class="sheet" id="sheetTime">
+  <div class="sheet-handle"></div>
+  <h3>Novo horário</h3>
+  <div class="ctx" id="sheetTimeCtx"></div>
+  <input type="time" id="timeInput" value="06:00">
+  <div class="sheet-actions">
+    <button class="sheet-btn ghost" id="cancelTimeBtn">Cancelar</button>
+    <button class="sheet-btn primary" id="saveTimeBtn">Adicionar</button>
+  </div>
+</div>
+
+<script>
+const DAYS = [
+  {key:'dom', label:'DOM', full:'Domingo'},
+  {key:'seg', label:'SEG', full:'Segunda'},
+  {key:'ter', label:'TER', full:'Terça'},
+  {key:'qua', label:'QUA', full:'Quarta'},
+  {key:'qui', label:'QUI', full:'Quinta'},
+  {key:'sex', label:'SEX', full:'Sexta'},
+  {key:'sab', label:'SAB', full:'Sábado'},
+];
+const STORAGE_KEY = 'agenda_semanal_v1';
+const DEFAULT_TIMES = ['06:00','07:00','08:00','09:00','10:00','16:00','17:00','18:00','19:00','20:00'];
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  const data = {};
+  DAYS.forEach(d=>{
+    data[d.key] = {};
+    DEFAULT_TIMES.forEach(t=> data[d.key][t] = [null,null,null]);
+  });
+  return data;
+}
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data)); }
+
+const todayIdx = new Date().getDay();
+const state = {
+  data: loadData(),
+  activeDay: DAYS[todayIdx].key,
+  pending: null, // {day, time, slotIndex, editingName}
+  pendingTimeDay: null,
+};
+
+function getTimesForDay(dayKey){
+  return Object.keys(state.data[dayKey]).sort();
+}
+
+function dayHasPeople(dayKey){
+  return Object.values(state.data[dayKey]).some(slots => slots.some(n=>n));
+}
+
+function renderTabs(){
+  const wrap = document.getElementById('dayTabs');
+  wrap.innerHTML = '';
+  DAYS.forEach(d=>{
+    const el = document.createElement('div');
+    el.className = 'day-pill' + (d.key===state.activeDay ? ' active':'') + (dayHasPeople(d.key)?' has-people':'');
+    const count = Object.values(state.data[d.key]).reduce((a,s)=>a+s.filter(Boolean).length,0);
+    el.innerHTML = `${d.label}<span class="n">${count||'—'}</span>`;
+    el.onclick = ()=>{ state.activeDay = d.key; render(); };
+    wrap.appendChild(el);
+  });
+}
+
+function render(){
+  renderTabs();
+  const dayObj = DAYS.find(d=>d.key===state.activeDay);
+  document.getElementById('weekLabel').textContent = dayObj.full.toUpperCase() + ' · TOQUE PARA MARCAR';
+  const totalToday = Object.values(state.data[state.activeDay]).reduce((a,s)=>a+s.filter(Boolean).length,0);
+  document.getElementById('countBadge').textContent = totalToday;
+
+  const container = document.getElementById('slotsContainer');
+  container.innerHTML = '';
+  const times = getTimesForDay(state.activeDay);
+
+  if(times.length===0){
+    container.innerHTML = `<div class="empty-day"><div class="big">Nenhum horário ainda</div><div class="small">Toque em "Adicionar horário" abaixo<br>para criar o primeiro do dia.</div></div>`;
+    return;
+  }
+
+  times.forEach(t=>{
+    const slots = state.data[state.activeDay][t];
+    const filled = slots.filter(Boolean).length;
+    const row = document.createElement('div');
+    row.className = 'slot-row' + (filled===3 ? ' row-full':'');
+    row.innerHTML = `
+      <div class="time-badge">${t}</div>
+      <div class="progress"><div class="fill" style="height:${(filled/3)*100}%"></div></div>
+      <div class="chips">
+        ${slots.map((name,i)=>`<div class="chip ${name?'filled':''}" data-time="${t}" data-idx="${i}">${name ? escapeHtml(name) : '+'}</div>`).join('')}
+      </div>
+      <div class="remove-row-btn" data-removetime="${t}">×</div>
+    `;
+    container.appendChild(row);
+  });
+
+  container.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      const time = chip.dataset.time;
+      const idx = parseInt(chip.dataset.idx,10);
+      const current = state.data[state.activeDay][time][idx];
+      openNameSheet(time, idx, current);
+    });
+  });
+  container.querySelectorAll('[data-removetime]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const time = btn.dataset.removetime;
+      if(confirm(`Remover o horário ${time}?`)){
+        delete state.data[state.activeDay][time];
+        saveData(); render();
+      }
+    });
+  });
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---- Name sheet ---- */
+const sheet = document.getElementById('sheet');
+const backdrop = document.getElementById('backdrop');
+const nameInput = document.getElementById('nameInput');
+const removeBtn = document.getElementById('removeBtn');
+
+function openNameSheet(time, idx, current){
+  state.pending = {time, idx};
+  document.getElementById('sheetTitle').textContent = current ? 'Editar nome' : 'Adicionar nome';
+  document.getElementById('sheetCtx').textContent = `${DAYS.find(d=>d.key===state.activeDay).full} · ${time} · vaga ${idx+1} de 3`;
+  nameInput.value = current || '';
+  removeBtn.style.display = current ? 'block' : 'none';
+  backdrop.classList.add('open');
+  sheet.classList.add('open');
+  setTimeout(()=>nameInput.focus(), 250);
+}
+function closeNameSheet(){
+  backdrop.classList.remove('open');
+  sheet.classList.remove('open');
+  nameInput.blur();
+  state.pending = null;
+}
+document.getElementById('cancelBtn').onclick = closeNameSheet;
+backdrop.onclick = closeNameSheet;
+document.getElementById('saveBtn').onclick = ()=>{
+  if(!state.pending) return;
+  const val = nameInput.value.trim();
+  if(val){
+    state.data[state.activeDay][state.pending.time][state.pending.idx] = val;
+    saveData();
+  }
+  closeNameSheet(); render();
+};
+removeBtn.onclick = ()=>{
+  if(!state.pending) return;
+  state.data[state.activeDay][state.pending.time][state.pending.idx] = null;
+  saveData();
+  closeNameSheet(); render();
+};
+nameInput.addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ document.getElementById('saveBtn').click(); }
+});
+
+/* ---- Time sheet ---- */
+const sheetTime = document.getElementById('sheetTime');
+const backdropTime = document.getElementById('backdropTime');
+const timeInput = document.getElementById('timeInput');
+
+document.getElementById('addTimeBtn').onclick = ()=>{
+  document.getElementById('sheetTimeCtx').textContent = DAYS.find(d=>d.key===state.activeDay).full;
+  backdropTime.classList.add('open');
+  sheetTime.classList.add('open');
+};
+function closeTimeSheet(){
+  backdropTime.classList.remove('open');
+  sheetTime.classList.remove('open');
+}
+document.getElementById('cancelTimeBtn').onclick = closeTimeSheet;
+backdropTime.onclick = closeTimeSheet;
+document.getElementById('saveTimeBtn').onclick = ()=>{
+  const t = timeInput.value;
+  if(!t) return;
+  if(!state.data[state.activeDay][t]){
+    state.data[state.activeDay][t] = [null,null,null];
+    saveData();
+  }
+  closeTimeSheet(); render();
+};
+
+render();
+</script>
+</body>
+</html>
