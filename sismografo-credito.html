@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Sismógrafo de Crédito</title>
+
+<!-- iOS: comportamento de app instalado (tela cheia, sem barra do Safari) -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sismógrafo">
+<meta name="theme-color" content="#0A0D10">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAEUElEQVR4nO3dMW7bVgDHYaXIkgIFuhYoYHS052zecoL2AD1Gp8ydfAwfwDlBNm+d7TEIUKBHyNpBKKFK+pMi+Ug+kd83xYlC0+bPj4+PlvTm+x9+3ME53y29A9RLHETiIBIHkTiIxEEkDiJxEImDSBxE4iASB5E4iMRBJA4icRCJg0gcROIgEgeROIjEQSQOInEQiYNIHETiIBIHkTiIxEEkDiJxEImDSBxE4iASB5E4iMRBJA4icRCJg0gcROIgEgeROIjEQSQOInEQiYNIHETiIBIHkTiIxEH0dukdYFav93fNn2+fX9of/Mb7ym7EYRaN9j6cVjbtbDENI8cmtEewC0OIkYPdLtQjjvXrHDYScbC7fX65fX45bcil7Mq1XKQ0/5SGFiMHkTjWrO/axtHjxbFdnSuk4tiWziAOiWO1Bl/BNsTB/xwmJY4NOT2nuPHGQOJYp/ETjp04ONWEJY6tSNOLlmmHOIjEsUJFJhw7cWxEr4XR3X95iYOYjjjWptQ5ZScOWohj/fpOOBri4LzX+ztxrMrgCYfnrdCPONZm/zyDww8Hb8pTE9am4KWsOEpqDsyYn9d6iKOYwx/Zox/feVopOGbsmXOU0X5gih+2C/WK8vTB4ijgkmO/VB9jiINIHGNdPiRc3eAhjlHSk1GPFhvaH18tcQxX1ZEusjNHQYujsM7Vydf7u3mqGn/9LI6BLnx1g6teDRPHEANe0/OSLdRGHL31Pa7XO3iIo4z2Aqa+cim4qcNddW+lh3QMKhwbiuySkWOsCw9DhQF1EselpphCVj4tFccoI297Vk4cFxl/7dpry5UQx0D1DAPF82q+NHF0m+hCcYrtt3yWAbovZd9/+nj44V+//lnkEy9lihtUq3T7/NLxZjxHZexN2kfN5+DGyDhOv8bBG5xuMrRrHznOlrH/+6aPqziWZU0xbLze31U4Gr1NR/f3P35r+W/vP318fHiaZpcYpWBkJqT9FPnWVzhInOXeSg8fvn776edfJtr4gC1/vnlXZDvJVuL48PXb0rvQ4fPNu9p2sqI4rmWwLePmzFTvn7+/jNxI2e9hjOPx4allTvr48LStY1na2Tfcq0116xzbMXKJYtIVjr2Oq5XTDpSxHd6ufEljlkoLLrMm1jmIxFGXC2ep80xmxUEkjiUVnCVMsbIgjurUs/4hjuszWz3iWFjNL+MhjjWY6FaGOJZX7dPzxVGpGs4s4qjCmPPCdLfHxVGv08Fj5uFEHETiqMWwa9pJf+VKHFdj/imqOCpS229eiuOKTR2TOGq3P5sssuwhjrpUdatFHNdqhgmKOKpTz7RUHDXq7GOegMRB5Hkr9ZrhmSntxHEFlnrdH3EQmXMQiYNIHETiIBIHkTiIxEEkDiJxEImDSBxE4iASB5E4iMRBJA4icRCJg0gcROIgEgeROIjEQSQOInEQiYNIHETiIBIHkTiIxEEkDiJxEImDSBxE4iD6F+09IfEqigU2AAAAAElFTkSuQmCC">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg:#0A0D10;
+    --panel:#12161B;
+    --panel-2:#161B21;
+    --border:#232931;
+    --text:#EDEFF2;
+    --muted:#7C8794;
+    --muted-2:#4C5A6E;
+    --calm:#3EBD8B;
+    --warn:#E8A33D;
+    --alert:#E1483A;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:'IBM Plex Sans', -apple-system, sans-serif;
+    -webkit-user-select:none; user-select:none;
+    overscroll-behavior-y: none;
+  }
+  body{
+    min-height:100vh;
+    padding-top:calc(var(--safe-top) + 14px);
+    padding-bottom:calc(var(--safe-bottom) + 24px);
+  }
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  header{
+    padding: 0 18px 14px;
+    display:flex; align-items:flex-start; justify-content:space-between;
+    border-bottom:1px solid var(--border);
+    margin-bottom:18px;
+  }
+  h1{
+    font-size:17px; font-weight:600; margin:0 0 3px;
+    letter-spacing:0.2px;
+  }
+  .sub{
+    font-size:11.5px; color:var(--muted); margin:0;
+  }
+  .sub .dot{
+    display:inline-block; width:6px; height:6px; border-radius:50%;
+    background:var(--calm); margin-right:5px; vertical-align:1px;
+  }
+  .sub.stale .dot{background:var(--warn);}
+  .sub.err .dot{background:var(--alert);}
+  #refresh{
+    background:var(--panel); border:1px solid var(--border); color:var(--text);
+    width:36px; height:36px; border-radius:10px; font-size:16px;
+    display:flex; align-items:center; justify-content:center;
+    margin-top:2px;
+  }
+  #refresh.spin svg{animation:spin 0.9s linear infinite;}
+  @keyframes spin{ to { transform:rotate(360deg); } }
+
+  main{padding:0 14px;}
+
+  .legend{
+    display:flex; gap:14px; padding:0 4px 16px; font-size:10.5px; color:var(--muted);
+    flex-wrap:wrap;
+  }
+  .legend span{display:flex; align-items:center; gap:5px;}
+  .legend i{width:9px; height:9px; border-radius:2px; display:inline-block;}
+
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:16px 16px 14px; margin-bottom:12px;
+  }
+  .card-top{
+    display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;
+  }
+  .card-name{font-size:13.5px; font-weight:600;}
+  .card-desc{font-size:10.5px; color:var(--muted); margin:0 0 12px;}
+  .card-value-row{
+    display:flex; align-items:baseline; gap:10px; margin-bottom:14px;
+  }
+  .card-value{font-size:30px; font-weight:600; line-height:1;}
+  .card-delta{font-size:12px; font-weight:500;}
+  .card-delta.up{color:var(--alert);}
+  .card-delta.down{color:var(--calm);}
+  .card-delta.flat{color:var(--muted);}
+  .card-date{font-size:10px; color:var(--muted-2); margin-left:auto;}
+
+  .strip-wrap{position:relative; height:34px; margin-top:6px;}
+  .strip-track{
+    position:absolute; left:0; right:0; top:15px; height:3px;
+    background:linear-gradient(90deg, var(--calm), var(--warn), var(--alert));
+    border-radius:2px; opacity:0.35;
+  }
+  .tick{
+    position:absolute; top:8px; width:2px; height:17px;
+    background:var(--muted-2); border-radius:1px;
+  }
+  .tick.missing{opacity:0.25; background:var(--muted-2);}
+  .tick-label{
+    position:absolute; top:27px; font-size:8.5px; color:var(--muted);
+    transform:translateX(-50%); white-space:nowrap;
+  }
+  .marker-today{
+    position:absolute; top:4px; width:10px; height:10px; border-radius:50%;
+    transform:translateX(-50%);
+    box-shadow:0 0 0 4px rgba(255,255,255,0.06);
+  }
+  .status-pill{
+    display:inline-block; font-size:9.5px; font-weight:600; letter-spacing:0.3px;
+    padding:3px 8px; border-radius:20px; margin-top:2px;
+  }
+  .status-pill.normal{background:rgba(62,189,139,0.14); color:var(--calm);}
+  .status-pill.atencao{background:rgba(232,163,61,0.14); color:var(--warn);}
+  .status-pill.alerta{background:rgba(225,72,58,0.16); color:var(--alert);}
+  .status-pill.na{background:rgba(124,135,148,0.12); color:var(--muted);}
+
+  .card-err{font-size:11.5px; color:var(--muted); padding:10px 0;}
+
+  footer{
+    padding:20px 20px 0; font-size:9.5px; color:var(--muted-2); line-height:1.6;
+  }
+  footer a{color:var(--muted);}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Sismógrafo de Crédito</h1>
+    <p class="sub mono" id="statusLine"><span class="dot"></span>conectando…</p>
+  </div>
+  <button id="refresh" onclick="loadAll()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+      <path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+  <div class="legend">
+    <span><i style="background:#3EBD8B"></i>normal</span>
+    <span><i style="background:#E8A33D"></i>atenção</span>
+    <span><i style="background:#E1483A"></i>alerta</span>
+    <span style="color:var(--muted-2)">marcas: pico 2008 · pico 2015-16 · dez/2020</span>
+  </div>
+
+  <div id="cards"></div>
+</main>
+
+<footer>
+  Fonte: Banco Central do Brasil — Sistema Gerenciador de Séries Temporais (SGS), dado público, atualizado direto da API a cada abertura do app.<br>
+  Séries: Endividamento 29037 · Comprometimento de renda 29034 · Inadimplência PF 21084 · Inadimplência PJ 21083 · Crédito/PIB 20622.<br>
+  Este painel não constitui recomendação de investimento.
+</footer>
+
+<script>
+const INDICATORS = [
+  { code: 29037, name: "Endividamento das famílias", desc: "Dívida das famílias / renda acumulada 12m", warnAt: 0.46, alertAt: 0.50 },
+  { code: 29034, name: "Comprometimento de renda", desc: "Serviço da dívida / renda mensal das famílias", warnAt: 0.27, alertAt: 0.29 },
+  { code: 21084, name: "Inadimplência PF", desc: "Atraso >90 dias — pessoas físicas", warnAt: 0.045, alertAt: 0.055 },
+  { code: 21083, name: "Inadimplência PJ", desc: "Atraso >90 dias — pessoas jurídicas", warnAt: 0.020, alertAt: 0.030 },
+  { code: 20622, name: "Crédito total / PIB", desc: "Saldo de crédito do SFN / PIB acumulado 12m", warnAt: 0.50, alertAt: 0.55 },
+];
+
+const cardsEl = document.getElementById('cards');
+const statusEl = document.getElementById('statusLine');
+const refreshBtn = document.getElementById('refresh');
+
+function parseDateBR(s){
+  const [d,m,y] = s.split('/');
+  return new Date(`${y}-${m}-${d}T00:00:00`);
+}
+function fmtDateShort(dt){
+  const meses=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  return `${meses[dt.getMonth()]}/${String(dt.getFullYear()).slice(2)}`;
+}
+function fmtPct(v){
+  return (v*100).toFixed(1).replace('.', ',') + '%';
+}
+
+async function fetchSeries(code){
+  const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${code}/dados?formato=json&dataInicial=01/01/2004`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  return json.map(d => ({ date: parseDateBR(d.data), value: parseFloat(String(d.valor).replace(',','.')) / 100 }));
+}
+
+function maxInRange(arr, startY, startM, endY, endM){
+  const start = new Date(`${startY}-${String(startM).padStart(2,'0')}-01T00:00:00`);
+  const end = new Date(`${endY}-${String(endM).padStart(2,'0')}-28T23:59:59`);
+  const inRange = arr.filter(p => p.date >= start && p.date <= end);
+  if(inRange.length === 0) return null;
+  return inRange.reduce((a,b)=> b.value > a.value ? b : a);
+}
+
+function buildCard(ind, data){
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  if(!data || data.length === 0){
+    card.innerHTML = `<div class="card-top"><span class="card-name">${ind.name}</span></div>
+      <p class="card-desc">${ind.desc}</p>
+      <p class="card-err">Sem dado disponível nesta série no momento.</p>`;
+    return card;
+  }
+
+  const last = data[data.length-1];
+  const prev = data[data.length-2];
+  const delta = prev ? last.value - prev.value : null;
+
+  const m2008 = maxInRange(data, 2008, 1, 2009, 12);
+  const m1516 = maxInRange(data, 2015, 1, 2016, 12);
+  const m2020 = maxInRange(data, 2020, 1, 2020, 12);
+
+  const allVals = data.map(d=>d.value);
+  const lo = Math.min(...allVals);
+  const hi = Math.max(...allVals);
+  const span = (hi - lo) || 1;
+  const pos = v => ((v - lo) / span) * 100;
+
+  let status = 'normal', label = 'normal';
+  if(last.value >= ind.alertAt){ status='alerta'; label='alerta'; }
+  else if(last.value >= ind.warnAt){ status='atencao'; label='atenção'; }
+
+  const deltaClass = delta === null ? 'flat' : (delta > 0.0005 ? 'up' : (delta < -0.0005 ? 'down' : 'flat'));
+  const deltaSign = delta === null ? '' : (delta > 0 ? '+' : '');
+  const deltaTxt = delta === null ? '—' : `${deltaSign}${(delta*100).toFixed(2).replace('.',',')}p.p. m/m`;
+
+  function tickHTML(marker, labelTxt, color){
+    if(!marker) return `<div class="tick missing" style="left:2%"></div><div class="tick-label" style="left:2%; opacity:.4">${labelTxt} s/d</div>`;
+    const p = pos(marker.value);
+    return `<div class="tick" style="left:${p}%; background:${color}"></div>
+            <div class="tick-label" style="left:${p}%">${labelTxt} · ${fmtPct(marker.value)}</div>`;
+  }
+
+  card.innerHTML = `
+    <div class="card-top">
+      <span class="card-name">${ind.name}</span>
+      <span class="status-pill ${status}">${label}</span>
+    </div>
+    <p class="card-desc">${ind.desc}</p>
+    <div class="card-value-row">
+      <span class="card-value mono">${fmtPct(last.value)}</span>
+      <span class="card-delta mono ${deltaClass}">${deltaTxt}</span>
+      <span class="card-date mono">${fmtDateShort(last.date)}</span>
+    </div>
+    <div class="strip-wrap">
+      <div class="strip-track"></div>
+      ${tickHTML(m2008, "2008", "#4C5A6E")}
+      ${tickHTML(m1516, "2015-16", "#4C5A6E")}
+      ${tickHTML(m2020, "2020", "#4C5A6E")}
+      <div class="marker-today" style="left:${pos(last.value)}%; background:${status==='alerta'?'var(--alert)':status==='atencao'?'var(--warn)':'var(--calm)'}"></div>
+    </div>
+  `;
+  return card;
+}
+
+async function loadAll(){
+  refreshBtn.classList.add('spin');
+  statusEl.className = 'sub mono';
+  statusEl.innerHTML = '<span class="dot"></span>atualizando…';
+  cardsEl.innerHTML = '';
+
+  let okCount = 0;
+  for(const ind of INDICATORS){
+    try{
+      const data = await fetchSeries(ind.code);
+      cardsEl.appendChild(buildCard(ind, data));
+      okCount++;
+    }catch(e){
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<div class="card-top"><span class="card-name">${ind.name}</span></div>
+        <p class="card-desc">${ind.desc}</p>
+        <p class="card-err">Não foi possível buscar agora (${e.message}). Verifique a conexão e toque em atualizar.</p>`;
+      cardsEl.appendChild(card);
+    }
+  }
+
+  refreshBtn.classList.remove('spin');
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  if(okCount === INDICATORS.length){
+    statusEl.className = 'sub mono';
+    statusEl.innerHTML = `<span class="dot"></span>atualizado às ${hh}:${mm}`;
+  }else if(okCount === 0){
+    statusEl.className = 'sub mono err';
+    statusEl.innerHTML = `<span class="dot"></span>sem conexão com o BCB`;
+  }else{
+    statusEl.className = 'sub mono stale';
+    statusEl.innerHTML = `<span class="dot"></span>parcialmente atualizado às ${hh}:${mm}`;
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>
