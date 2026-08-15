@@ -148,6 +148,7 @@ function App() {
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("TODOS");
+  const [mesFiltro, setMesFiltro] = useState("TODOS");
   const [formAberto, setFormAberto] = useState(false);
 
   const [form, setForm] = useState({
@@ -186,7 +187,28 @@ function App() {
 
   function remover(id) { persistir(trades.filter((t) => t.id !== id)); }
 
-  const filtrados = useMemo(() => (filtro === "TODOS" ? trades : trades.filter((t) => t.ativo === filtro)), [trades, filtro]);
+  const filtrados = useMemo(() => {
+    let lista = filtro === "TODOS" ? trades : trades.filter((t) => t.ativo === filtro);
+    if (mesFiltro !== "TODOS") lista = lista.filter((t) => t.data.slice(0, 7) === mesFiltro);
+    return lista;
+  }, [trades, filtro, mesFiltro]);
+
+  const meses = useMemo(() => {
+    const porMes = {};
+    trades.forEach((t) => {
+      const chave = t.data.slice(0, 7);
+      if (!porMes[chave]) porMes[chave] = { total: 0, qtd: 0 };
+      porMes[chave].total += t.resultado;
+      porMes[chave].qtd += 1;
+    });
+    const NOMES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+    return Object.entries(porMes)
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([chave, v]) => {
+        const [ano, mes] = chave.split("-");
+        return { chave, label: `${NOMES[parseInt(mes, 10) - 1]}/${ano.slice(2)}`, ...v };
+      });
+  }, [trades]);
 
   const stats = useMemo(() => {
     const base = filtrados;
@@ -247,6 +269,24 @@ function App() {
               );
             })}
           </div>
+          {meses.length > 0 && (
+            <div className="flex gap-2 mt-2 overflow-x-auto no-scrollbar">
+              {[{ chave: "TODOS", label: "Tudo", total: null }, ...meses].map((m) => {
+                const ativoMes = mesFiltro === m.chave;
+                return (
+                  <button key={m.chave} onClick={() => setMesFiltro(m.chave)}
+                    className={"shrink-0 px-3 py-1.5 rounded-full border font-mono text-xs flex items-center gap-1.5 transition-colors " + (ativoMes ? "border-[#E6EDF3] bg-[#1F2630]" : "border-[#1F2630] text-[#6B7785]")}>
+                    {m.label}
+                    {m.total !== null && (
+                      <span className={m.total >= 0 ? "text-[#00D68F]" : "text-[#FF4757]"}>
+                        {m.total >= 0 ? "+" : ""}{m.total.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </header>
 
