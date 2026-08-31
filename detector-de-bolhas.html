@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Detector de Bolhas</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bolhas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#12161d;
+  --panel:#1a2029;
+  --panel-2:#212836;
+  --line:rgba(237,238,240,0.08);
+  --text:#e8e9ec;
+  --text-dim:#9aa1ae;
+  --safe:#4c9a6a;
+  --watch:#d9a441;
+  --danger:#c1502e;
+  --extreme:#e0483c;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--ink);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:60px;
+}
+.wrap{max-width:720px;margin:0 auto;padding:28px 18px 10px;}
+h1,h2,h3{font-family:'Fraunces',serif;font-weight:600;margin:0;}
+.eyebrow{font-size:13px;color:var(--text-dim);margin-bottom:6px;}
+h1{font-size:30px;line-height:1.15;letter-spacing:-0.01em;}
+.lede{color:var(--text-dim);font-size:14.5px;line-height:1.5;margin-top:10px;max-width:52ch;}
+
+.refresh-bar{display:flex;align-items:center;gap:10px;margin-top:20px;}
+.btn{
+  cursor:pointer;white-space:nowrap;
+  background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+  border-radius:9px;padding:9px 14px;font-family:'Inter',sans-serif;font-size:14px;
+}
+.btn:active{transform:translateY(1px);}
+.btn:disabled{opacity:0.5;}
+.updated-at{color:var(--text-dim);font-size:12.5px;}
+
+/* Gauge */
+.gauge-card{
+  margin-top:22px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:26px 22px 20px;
+  text-align:center;
+}
+svg#gauge{width:100%;max-width:340px;height:auto;}
+.gauge-figure{position:relative;}
+.gauge-readout{position:absolute;left:50%;top:66%;transform:translate(-50%,-50%);}
+.gauge-number{font-family:'IBM Plex Mono',monospace;font-size:46px;font-weight:600;line-height:1;}
+.gauge-label{font-size:12.5px;color:var(--text-dim);margin-top:4px;letter-spacing:0.01em;}
+.gauge-status{display:inline-block;margin-top:14px;padding:5px 13px;border-radius:20px;font-size:12.5px;font-weight:500;}
+
+/* Sections */
+section.cat{margin-top:34px;}
+.cat-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:4px;}
+.cat-head h2{font-size:19px;}
+.cat-sub{color:var(--text-dim);font-size:13px;margin-top:2px;margin-bottom:16px;line-height:1.5;}
+
+.card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:15px 16px;
+  margin-bottom:10px;
+}
+.card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+.card-name{font-size:15px;font-weight:500;}
+.card-desc{color:var(--text-dim);font-size:13px;line-height:1.5;margin-top:4px;max-width:46ch;}
+.pill{flex-shrink:0;font-size:11.5px;font-weight:500;padding:4px 10px;border-radius:20px;white-space:nowrap;}
+.card-value-row{display:flex;align-items:baseline;gap:8px;margin-top:12px;}
+.card-value{font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;}
+.card-value.loading{color:var(--text-dim);font-size:15px;font-weight:400;}
+.card-unit{color:var(--text-dim);font-size:13px;}
+.card-scale{color:var(--text-dim);font-size:11.5px;margin-top:8px;font-family:'IBM Plex Mono',monospace;}
+.card-refdate{color:var(--text-dim);font-size:11.5px;margin-top:2px;}
+
+/* Dalio checklist */
+.dalio-item{display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-bottom:1px solid var(--line);}
+.dalio-item:last-child{border-bottom:none;}
+.dalio-check{
+  width:22px;height:22px;border-radius:6px;flex-shrink:0;margin-top:1px;
+  border:1.5px solid var(--text-dim);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s, border-color .15s;
+}
+.dalio-check.on{background:var(--danger);border-color:var(--danger);}
+.dalio-check svg{width:13px;height:13px;opacity:0;}
+.dalio-check.on svg{opacity:1;}
+.dalio-text{font-size:14px;line-height:1.5;}
+
+/* Risk note */
+.risk-note{margin-top:34px;background:var(--panel);border:1px solid rgba(193,80,46,0.25);border-radius:14px;padding:18px 18px;}
+.risk-note h3{font-size:15.5px;color:var(--danger);margin-bottom:8px;}
+.risk-note p{color:var(--text-dim);font-size:13.5px;line-height:1.6;margin:0 0 8px;}
+.risk-note p:last-child{margin-bottom:0;}
+
+.footer-note{margin-top:28px;color:var(--text-dim);font-size:12px;text-align:center;line-height:1.6;}
+
+@media (max-width:400px){
+  h1{font-size:26px;}
+  .gauge-number{font-size:38px;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">Painel do trader</div>
+  <h1>Detector de Bolhas</h1>
+  <p class="lede">Indicadores fiscais e de crédito do Brasil, buscados automaticamente na API do Banco Central. O checklist de Ray Dalio fica ao seu critério.</p>
+
+  <div class="refresh-bar">
+    <button class="btn" id="btnRefresh">Atualizar agora</button>
+    <span class="updated-at" id="updatedAt"></span>
+  </div>
+
+  <div class="gauge-card">
+    <div class="gauge-figure">
+      <svg id="gauge" viewBox="0 0 300 175">
+        <path d="M 30 160 A 120 120 0 0 1 270 160" fill="none" stroke="#2a3140" stroke-width="20" stroke-linecap="round"/>
+        <path id="gaugeArc" d="M 30 160 A 120 120 0 0 1 270 160" fill="none" stroke="#4c9a6a" stroke-width="20" stroke-linecap="round" stroke-dasharray="377" stroke-dashoffset="377"/>
+        <line id="gaugeNeedle" x1="150" y1="160" x2="150" y2="60" stroke="#e8e9ec" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="150" cy="160" r="6" fill="#e8e9ec"/>
+      </svg>
+      <div class="gauge-readout">
+        <div class="gauge-number" id="gaugeNumber">0</div>
+        <div class="gauge-label">índice composto de bolha</div>
+      </div>
+    </div>
+    <div class="gauge-status" id="gaugeStatus">carregando…</div>
+  </div>
+
+  <section class="cat" id="cat-indicadores">
+    <div class="cat-head"><h2>Indicadores automáticos</h2></div>
+    <div class="cat-sub">Fonte: Sistema Gerenciador de Séries Temporais do Banco Central (SGS), sem preenchimento manual.</div>
+    <div id="cards-indicadores"></div>
+  </section>
+
+  <section class="cat" id="cat-dalio">
+    <div class="cat-head"><h2>Checklist de Ray Dalio</h2></div>
+    <div class="cat-sub">Os seis critérios qualitativos que Dalio usa para reconhecer uma bolha em formação. Marque os que se aplicam ao cenário atual.</div>
+    <div class="card" id="dalioCard"></div>
+  </section>
+
+  <div class="risk-note">
+    <h3>Identificar não é cronometrar</h3>
+    <p>Um índice alto mostra distanciamento dos fundamentos, não o momento do estouro. Mercados irracionais podem seguir subindo por muito mais tempo do que uma posição alavancada aguenta esperar.</p>
+    <p>Diversificação entre ativos descorrelacionados, stop-loss e tamanho de posição controlado — arriscando só o que pode ser perdido sem comprometer o capital principal — seguem sendo a proteção real contra esse cenário.</p>
+  </div>
+
+  <div class="footer-note">Dados públicos do Banco Central (SGS). Checklist salvo neste dispositivo.</div>
+</div>
+
+<script>
+const CACHE_KEY = 'detector-bolhas-cache-v2';
+const DALIO_KEY = 'detector-bolhas-dalio-v2';
+
+// Séries do SGS/BCB confirmadas: 13762 = Dívida bruta do governo geral (%PIB);
+// 5793 = Resultado primário, setor público consolidado, acumulado 12m (%PIB);
+// 20622 = Saldo da carteira de crédito em relação ao PIB (%)
+const INDICATORS = [
+  {
+    id:'divida', codigo:13762,
+    name:'Dívida Bruta do Governo Geral',
+    desc:'Estoque total da dívida pública frente ao tamanho da economia. Acima de determinado ponto, o serviço da dívida passa a comprometer o orçamento.',
+    unit:'% do PIB', scale:'~60% referência · alerta > 100%',
+    transform: v => v, low:60, high:100, extreme:150
+  },
+  {
+    id:'primario', codigo:5793,
+    name:'Déficit Fiscal Primário',
+    desc:'Resultado primário do setor público consolidado, acumulado em 12 meses. Valor negativo é déficit — quanto mais negativo, maior a dependência de novo financiamento.',
+    unit:'% do PIB', scale:'superávit ou déficit < 2% ok · alerta > 5%',
+    transform: v => v < 0 ? -v : 0, low:2, high:5, extreme:8
+  },
+  {
+    id:'credito', codigo:20622,
+    name:'Crédito Total / PIB',
+    desc:'Saldo de todo o crédito concedido pelo Sistema Financeiro Nacional em relação ao PIB. Crescimento acelerado desse patamar costuma preceder ciclos de inadimplência.',
+    unit:'% do PIB', scale:'~40-50% moderado · alerta > 80%',
+    transform: v => v, low:50, high:80, extreme:95
+  }
+];
+
+const DALIO = [
+  'Preços muito elevados em comparação com as métricas tradicionais de valor',
+  'Expectativas insustentáveis de crescimento de preços já embutidas nas cotações',
+  'Novos compradores entrando em massa no mercado',
+  'Sentimento amplamente otimista, gerando medo psicológico de não possuir o ativo',
+  'Compras financiadas por alta alavancagem',
+  'Investimentos pesados em capacidade futura baseados na demanda especulativa atual'
+];
+
+function loadCache(){
+  try{ return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; }catch(e){ return {}; }
+}
+function saveCache(data){ localStorage.setItem(CACHE_KEY, JSON.stringify(data)); }
+function loadDalio(){
+  try{ return JSON.parse(localStorage.getItem(DALIO_KEY)) || DALIO.map(()=>false); }catch(e){ return DALIO.map(()=>false); }
+}
+function saveDalio(arr){ localStorage.setItem(DALIO_KEY, JSON.stringify(arr)); }
+
+let cache = loadCache(); // { [id]: { value, refDate, fetchedAt } }
+let dalioState = loadDalio();
+
+function checkIcon(){
+  return '<svg viewBox="0 0 24 24" fill="none"><path d="M4 12.5L9.5 18L20 6" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
+function buildCards(){
+  const container = document.getElementById('cards-indicadores');
+  container.innerHTML = '';
+  INDICATORS.forEach(ind=>{
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-top">
+        <div>
+          <div class="card-name">${ind.name}</div>
+          <div class="card-desc">${ind.desc}</div>
+        </div>
+        <div class="pill" data-pill="${ind.id}">—</div>
+      </div>
+      <div class="card-value-row">
+        <span class="card-value loading" data-value="${ind.id}">carregando…</span>
+        <span class="card-unit">${ind.unit}</span>
+      </div>
+      <div class="card-refdate" data-refdate="${ind.id}"></div>
+      <div class="card-scale">${ind.scale}</div>
+    `;
+    container.appendChild(card);
+  });
+}
+buildCards();
+
+function buildDalio(){
+  const card = document.getElementById('dalioCard');
+  card.innerHTML = '';
+  DALIO.forEach((text, idx)=>{
+    const row = document.createElement('div');
+    row.className = 'dalio-item';
+    row.innerHTML = `<div class="dalio-check" data-dalio="${idx}">${checkIcon()}</div><div class="dalio-text">${text}</div>`;
+    card.appendChild(row);
+  });
+  DALIO.forEach((_, idx)=>{
+    document.querySelector(`[data-dalio="${idx}"]`).classList.toggle('on', !!dalioState[idx]);
+  });
+  document.querySelectorAll('[data-dalio]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const idx = Number(el.getAttribute('data-dalio'));
+      dalioState[idx] = !dalioState[idx];
+      saveDalio(dalioState);
+      el.classList.toggle('on', dalioState[idx]);
+      updateGauge();
+    });
+  });
+}
+buildDalio();
+
+const STATUS_COLOR = { baixo:'var(--safe)', moderado:'var(--watch)', alto:'var(--danger)', extremo:'var(--extreme)' };
+const STATUS_LABEL = { baixo:'Baixo', moderado:'Moderado', alto:'Alto', extremo:'Extremo' };
+const STATUS_SCORE = { baixo:0, moderado:1, alto:2.4, extremo:4 };
+
+function statusFor(ind, rawValue){
+  if(rawValue === null || rawValue === undefined || isNaN(rawValue)) return null;
+  const v = ind.transform(rawValue);
+  if(v < ind.low) return 'baixo';
+  if(v < ind.high) return 'moderado';
+  if(v < ind.extreme) return 'alto';
+  return 'extremo';
+}
+
+function renderCard(ind){
+  const entry = cache[ind.id];
+  const valueEl = document.querySelector(`[data-value="${ind.id}"]`);
+  const refdateEl = document.querySelector(`[data-refdate="${ind.id}"]`);
+  const pillEl = document.querySelector(`[data-pill="${ind.id}"]`);
+
+  if(!entry || entry.value === null || entry.value === undefined){
+    valueEl.textContent = 'sem dado';
+    valueEl.classList.add('loading');
+    refdateEl.textContent = '';
+    pillEl.textContent = '—';
+    pillEl.style.background = 'var(--panel-2)';
+    pillEl.style.color = 'var(--text-dim)';
+    return;
+  }
+
+  valueEl.classList.remove('loading');
+  const displayValue = ind.id === 'primario'
+    ? (entry.value < 0 ? `déficit ${Math.abs(entry.value).toFixed(2)}` : `superávit ${entry.value.toFixed(2)}`)
+    : entry.value.toFixed(2);
+  valueEl.textContent = displayValue;
+  refdateEl.textContent = 'referência: ' + entry.refDate;
+
+  const st = statusFor(ind, entry.value);
+  pillEl.textContent = STATUS_LABEL[st];
+  pillEl.style.background = STATUS_COLOR[st];
+  pillEl.style.color = '#12161d';
+}
+
+function renderAllCards(){
+  INDICATORS.forEach(renderCard);
+  const times = Object.values(cache).map(e=>e && e.fetchedAt).filter(Boolean);
+  const updatedAtEl = document.getElementById('updatedAt');
+  if(times.length){
+    const latest = new Date(Math.max(...times.map(t=>new Date(t).getTime())));
+    updatedAtEl.textContent = 'atualizado ' + latest.toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+  } else {
+    updatedAtEl.textContent = '';
+  }
+}
+
+async function fetchIndicator(ind){
+  const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${ind.codigo}/dados/ultimos/1?formato=json`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('falha ao buscar ' + ind.id);
+  const data = await res.json();
+  if(!data || !data.length) throw new Error('sem dados para ' + ind.id);
+  const point = data[0];
+  return { value: parseFloat(point.valor.replace(',', '.')), refDate: point.data, fetchedAt: new Date().toISOString() };
+}
+
+async function refreshAll(){
+  const btn = document.getElementById('btnRefresh');
+  btn.disabled = true;
+  btn.textContent = 'Buscando…';
+  await Promise.all(INDICATORS.map(async ind=>{
+    try{
+      const result = await fetchIndicator(ind);
+      cache[ind.id] = result;
+    }catch(e){
+      if(!cache[ind.id]) cache[ind.id] = null;
+      console.error(e);
+    }
+  }));
+  saveCache(cache);
+  renderAllCards();
+  updateGauge();
+  btn.disabled = false;
+  btn.textContent = 'Atualizar agora';
+}
+document.getElementById('btnRefresh').addEventListener('click', refreshAll);
+
+function updateGauge(){
+  let scoreSum = 0, count = 0;
+  INDICATORS.forEach(ind=>{
+    const entry = cache[ind.id];
+    const st = entry ? statusFor(ind, entry.value) : null;
+    if(st){ scoreSum += STATUS_SCORE[st]; count++; }
+  });
+  const dalioCount = dalioState.filter(Boolean).length;
+  const dalioScore = (dalioCount / DALIO.length) * 4;
+
+  let composite;
+  if(count === 0 && dalioCount === 0){
+    composite = null;
+  } else {
+    const totalScore = scoreSum + dalioScore;
+    const totalWeight = count + 1;
+    composite = (totalScore / totalWeight) / 4 * 100;
+  }
+
+  const numberEl = document.getElementById('gaugeNumber');
+  const statusEl = document.getElementById('gaugeStatus');
+  const arc = document.getElementById('gaugeArc');
+  const needle = document.getElementById('gaugeNeedle');
+  const circumference = 377;
+
+  if(composite === null){
+    numberEl.textContent = '—';
+    statusEl.textContent = 'sem dados';
+    statusEl.style.background = 'var(--panel-2)';
+    statusEl.style.color = 'var(--text-dim)';
+    arc.setAttribute('stroke-dashoffset', circumference);
+    needle.setAttribute('x2', 150);
+    needle.setAttribute('y2', 60);
+    return;
+  }
+
+  composite = Math.max(0, Math.min(100, composite));
+  numberEl.textContent = Math.round(composite);
+
+  let label, color;
+  if(composite < 25){ label='Baixo risco de bolha'; color='var(--safe)'; }
+  else if(composite < 50){ label='Risco moderado'; color='var(--watch)'; }
+  else if(composite < 75){ label='Risco alto'; color='var(--danger)'; }
+  else { label='Risco extremo'; color='var(--extreme)'; }
+
+  statusEl.textContent = label;
+  statusEl.style.background = color;
+  statusEl.style.color = '#12161d';
+
+  arc.setAttribute('stroke', color);
+  const offset = circumference - (composite/100)*circumference;
+  arc.setAttribute('stroke-dashoffset', offset);
+
+  const angleDeg = -180 + (composite/100)*180;
+  const rad = angleDeg * Math.PI/180;
+  const len = 90;
+  needle.setAttribute('x2', 150 + len*Math.cos(rad));
+  needle.setAttribute('y2', 160 + len*Math.sin(rad));
+}
+
+renderAllCards();
+updateGauge();
+refreshAll();
+</script>
+</body>
+</html>
