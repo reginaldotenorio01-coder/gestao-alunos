@@ -55,6 +55,9 @@ const Clock = (p) => <Icon {...p}><circle cx="12" cy="12" r="10" /><polyline poi
 const Dumbbell = (p) => <Icon {...p}><path d="M6.5 6.5 17.5 17.5" /><path d="M14 4l6 6" /><path d="M4 14l6 6" /><path d="M2 8l4-4" /><path d="M20 16l-4 4" /><path d="M12 4l4 4" /></Icon>;
 const Check = (p) => <Icon {...p}><polyline points="20 6 9 17 4 12" /></Icon>;
 const CalendarIcon = (p) => <Icon {...p}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></Icon>;
+const ChevronLeft = (p) => <Icon {...p}><polyline points="15 18 9 12 15 6" /></Icon>;
+const ChevronRight = (p) => <Icon {...p}><polyline points="9 18 15 12 9 6" /></Icon>;
+const Pencil = (p) => <Icon {...p}><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /></Icon>;
 
 /* ---------- data ---------- */
 const DAYS = [
@@ -80,6 +83,9 @@ function App() {
   const [form, setForm] = useState({ name: "", type: "personal", fee: "", time: "", days: emptyDays() });
   const [saveError, setSaveError] = useState(false);
   const [formError, setFormError] = useState("");
+  const [viewMonth, setViewMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  const [amountEdit, setAmountEdit] = useState(null); // { studentId, name }
+  const [amountDraft, setAmountDraft] = useState("");
   const [filterPending, setFilterPending] = useState(false);
 
   useEffect(() => {
@@ -155,8 +161,12 @@ function App() {
   }
 
   const today = new Date();
-  const monthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-  const monthName = today.toLocaleDateString("pt-BR", { month: "long" });
+  const monthKey = `${viewMonth.getFullYear()}-${String(viewMonth.getMonth() + 1).padStart(2, "0")}`;
+  const monthName = viewMonth.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const isCurrentMonth = viewMonth.getFullYear() === today.getFullYear() && viewMonth.getMonth() === today.getMonth();
+  function goMonth(delta) {
+    setViewMonth((d) => { const n = new Date(d); n.setMonth(n.getMonth() + delta); return n; });
+  }
 
   const isPaid = (s) => !!(s.payments && s.payments[monthKey]);
   function togglePaid(s) {
@@ -164,12 +174,36 @@ function App() {
     persist(students.map((st) => (st.id === s.id ? { ...st, payments } : st)));
   }
 
+  // valor cobrado desse aluno no mês em exibição — usa override do mês se existir, senão o valor padrão
+  const amountFor = (s) => (s.amounts && s.amounts[monthKey] != null) ? s.amounts[monthKey] : (s.fee || 0);
+
+  function openAmountEdit(s) {
+    setAmountEdit({ studentId: s.id, name: s.name });
+    setAmountDraft(String(amountFor(s)));
+  }
+  function saveAmount() {
+    if (!amountEdit) return;
+    const val = Number(amountDraft) || 0;
+    persist(students.map((s) => (s.id === amountEdit.studentId ? { ...s, amounts: { ...(s.amounts || {}), [monthKey]: val } } : s)));
+    setAmountEdit(null);
+  }
+  function resetAmountToDefault() {
+    if (!amountEdit) return;
+    persist(students.map((s) => {
+      if (s.id !== amountEdit.studentId) return s;
+      const amounts = { ...(s.amounts || {}) };
+      delete amounts[monthKey];
+      return { ...s, amounts };
+    }));
+    setAmountEdit(null);
+  }
+
   const personalStudents = students.filter((s) => s.type === "personal");
   const assistidoStudents = students.filter((s) => s.type === "assistido");
   const personalCount = personalStudents.length;
   const assistidoCount = assistidoStudents.length;
-  const personalValue = personalStudents.reduce((sum, s) => sum + (s.fee || 0), 0);
-  const assistidoValue = assistidoStudents.reduce((sum, s) => sum + (s.fee || 0), 0);
+  const personalValue = personalStudents.reduce((sum, s) => sum + amountFor(s), 0);
+  const assistidoValue = assistidoStudents.reduce((sum, s) => sum + amountFor(s), 0);
 
   const weeklyTotal = (s) => Object.values(s.days).filter(Boolean).length;
   const grandTotal = students.reduce((sum, s) => sum + weeklyTotal(s), 0);
@@ -177,8 +211,8 @@ function App() {
   const maxDay = Math.max(1, ...dayCounts.map((d) => d.count));
   const busiest = dayCounts.reduce((a, b) => (b.count > a.count ? b : a), dayCounts[0]);
 
-  const expected = students.reduce((sum, s) => sum + (s.fee || 0), 0);
-  const received = students.reduce((sum, s) => sum + (isPaid(s) ? s.fee || 0 : 0), 0);
+  const expected = students.reduce((sum, s) => sum + amountFor(s), 0);
+  const received = students.reduce((sum, s) => sum + (isPaid(s) ? amountFor(s) : 0), 0);
   const pending = expected - received;
   const pendingCount = students.filter((s) => !isPaid(s)).length;
   const pct = expected > 0 ? Math.round((received / expected) * 100) : 0;
@@ -243,10 +277,18 @@ function App() {
 
         {/* Painel financeiro do mês */}
         <div style={styles.moneyPanel}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-            <span className="pt-body" style={{ fontSize: 11.5, letterSpacing: 1, color: "#9BA3A8", textTransform: "uppercase" }}>
-              Cobrança de {monthName}
-            </span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={() => goMonth(-1)} className="chip" style={styles.monthNavBtn} aria-label="Mês anterior">
+                <ChevronLeft size={14} color="#9BA3A8" />
+              </button>
+              <span className="pt-body" style={{ fontSize: 11.5, letterSpacing: 1, color: "#9BA3A8", textTransform: "uppercase" }}>
+                Cobrança de {monthName}
+              </span>
+              <button onClick={() => goMonth(1)} disabled={isCurrentMonth} className="chip" style={{ ...styles.monthNavBtn, opacity: isCurrentMonth ? 0.25 : 1 }} aria-label="Próximo mês">
+                <ChevronRight size={14} color="#9BA3A8" />
+              </button>
+            </div>
             {pendingCount > 0 && (
               <span className="pt-body" style={{ fontSize: 11, color: "#E05252" }}>
                 {pendingCount} pendente{pendingCount > 1 ? "s" : ""}
@@ -373,7 +415,11 @@ function App() {
             </div>
 
             <div style={styles.moneyLine}>
-              <span className="pt-mono" style={{ fontSize: 14.5, fontWeight: 700, color: "#ECEEEF" }}>{formatBRL(s.fee)}</span>
+              <button onClick={(e) => { e.stopPropagation(); openAmountEdit(s); }} className="chip pt-mono" style={styles.amountBtn}>
+                {formatBRL(amountFor(s))}
+                {s.amounts && s.amounts[monthKey] != null && <span style={styles.overrideDot} title="Valor diferente do padrão neste mês" />}
+                <Pencil size={11} color="#6B7378" style={{ marginLeft: 6 }} />
+              </button>
               <button onClick={(e) => { e.stopPropagation(); togglePaid(s); }} className="chip pt-body" style={{
                 ...styles.payChip,
                 background: isPaid(s) ? "rgba(124,197,118,0.15)" : "rgba(224,82,82,0.15)",
@@ -513,6 +559,28 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Editar valor do mês */}
+      {amountEdit && (
+        <div style={styles.overlay} onClick={() => setAmountEdit(null)}>
+          <div className="sheet-enter" style={styles.sheet} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <span className="pt-display" style={{ fontSize: 18, letterSpacing: 0.5, color: "#ECEEEF" }}>
+                VALOR — {monthName.toUpperCase()}
+              </span>
+              <button onClick={() => setAmountEdit(null)} style={styles.closeBtn}><X size={18} color="#9BA3A8" /></button>
+            </div>
+            <div className="pt-body" style={{ fontSize: 13, color: "#9BA3A8", marginBottom: 14 }}>{amountEdit.name}</div>
+            <label className="pt-body" style={styles.fieldLabel}>Valor cobrado neste mês (R$)</label>
+            <input className="pt-body" style={styles.input} type="number" inputMode="decimal" value={amountDraft}
+              onChange={(e) => setAmountDraft(e.target.value)} placeholder="0,00" autoFocus />
+            <button onClick={saveAmount} className="pt-display" style={styles.saveBtn}>SALVAR</button>
+            <button onClick={resetAmountToDefault} className="pt-body" style={styles.resetAmountBtn}>
+              Usar valor padrão do aluno
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -553,6 +621,10 @@ const styles = {
   dayDot: { width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, fontFamily: "'Inter', sans-serif" },
   totalNum: { fontSize: 17, fontWeight: 700, color: "#FF7A33" },
   moneyLine: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, paddingTop: 10, borderTop: "1px solid #2F363B" },
+  monthNavBtn: { background: "#2F363B", border: "none", borderRadius: "50%", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
+  amountBtn: { background: "none", border: "none", padding: 0, fontSize: 14.5, fontWeight: 700, color: "#ECEEEF", display: "flex", alignItems: "center", cursor: "pointer" },
+  overrideDot: { width: 6, height: 6, borderRadius: "50%", background: "#FF7A33", marginLeft: 6 },
+  resetAmountBtn: { width: "100%", background: "none", border: "none", color: "#6B7378", fontSize: 12.5, padding: "12px 0 0", cursor: "pointer", textDecoration: "underline" },
   payChip: { border: "none", borderRadius: 8, padding: "5px 10px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center" },
   fab: { position: "fixed", right: 20, bottom: 24, width: 54, height: 54, borderRadius: "50%", background: "#FF7A33", border: "none", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 18px rgba(255,122,51,0.4)", cursor: "pointer" },
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "flex-end", zIndex: 50 },
