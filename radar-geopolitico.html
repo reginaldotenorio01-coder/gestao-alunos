@@ -311,7 +311,7 @@ function jsonp(url){
 async function fetchCategory(cat){
   const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=' +
     encodeURIComponent(cat.query + ' sourcelang:english') +
-    '&mode=artlist&maxrecords=20&timespan=48h&sort=datedesc&format=json';
+    '&mode=artlist&maxrecords=20&timespan=48h&sort=datedesc&format=jsonp';
   try{
     const data = await jsonp(url);
     const arts = (data && data.articles) || [];
