@@ -57,6 +57,44 @@
     line-height:1.5;
   }
 
+  .oilbar{
+    display:flex; gap:0; margin-top:16px;
+    border:1px solid var(--line); border-radius:8px; overflow:hidden;
+  }
+  .oil{
+    flex:1; padding:10px 14px; position:relative;
+  }
+  .oil + .oil{border-left:1px solid var(--line);}
+  .oil-label{
+    font-size:10.5px; color:var(--paper-dim); font-weight:600;
+    letter-spacing:0.02em; margin-bottom:3px;
+  }
+  .oil-price{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:18px; font-weight:500; color:var(--paper);
+    display:flex; align-items:baseline; gap:8px;
+  }
+  .oil-change{font-size:12px; font-weight:500;}
+  .oil-change.up{color:var(--sage);}
+  .oil-change.down{color:var(--alert);}
+  .oil-stale{font-size:10px; color:var(--paper-dim); margin-top:2px;}
+  .oil-edit{
+    position:absolute; top:8px; right:10px;
+    background:none; border:none; color:var(--paper-dim);
+    font-size:14px; padding:2px 4px; line-height:1;
+  }
+  .oil-edit-form{display:none; gap:6px; margin-top:6px;}
+  .oil-edit-form.show{display:flex;}
+  .oil-edit-form input{
+    width:70px; background:var(--panel-2); border:1px solid var(--line);
+    color:var(--paper); font-family:'IBM Plex Mono',monospace; font-size:13px;
+    padding:4px 6px; border-radius:4px;
+  }
+  .oil-edit-form button{
+    background:var(--amber); color:var(--ink); border:none;
+    font-size:11px; font-weight:600; padding:4px 8px; border-radius:4px;
+  }
+
   .filters{
     display:flex; gap:8px; overflow-x:auto; padding:14px 18px 4px;
     -ms-overflow-style:none; scrollbar-width:none;
@@ -139,6 +177,23 @@
   }
   .source b{color:#c7c2b6; font-weight:500;}
 
+  .analyze-btn{
+    margin-top:9px;
+    background:none; border:1px solid var(--line); color:var(--amber);
+    font-family:'Inter',sans-serif; font-size:11.5px; font-weight:600;
+    padding:5px 10px; border-radius:6px;
+  }
+  .analyze-btn:disabled{opacity:.5;}
+  .analysis-box{
+    margin-top:10px; padding:10px 12px;
+    background:var(--panel-2); border-left:2px solid var(--amber);
+    border-radius:4px;
+    font-size:13px; line-height:1.5; color:#dcd8cc;
+    display:none;
+  }
+  .analysis-box.show{display:block;}
+  .analysis-box .loading-line{color:var(--paper-dim); font-style:italic;}
+
   .empty, .loading{
     text-align:center; padding:50px 20px; color:var(--paper-dim); font-size:13.5px; line-height:1.6;
   }
@@ -173,6 +228,29 @@
     <div class="clock" id="clock">--:--<br><b id="clockDate">--</b></div>
   </div>
   <div class="subhead">Fatos que fazem preço: guerra, estreitos, petróleo, sanções e bancos centrais — direto das agências, sem edição humana.</div>
+
+  <div class="oilbar">
+    <div class="oil" id="oilWTI">
+      <button class="oil-edit" data-target="WTI">✎</button>
+      <div class="oil-label">WTI</div>
+      <div class="oil-price"><span class="val">—</span><span class="oil-change"></span></div>
+      <div class="oil-stale"></div>
+      <div class="oil-edit-form" id="editWTI">
+        <input type="number" step="0.01" placeholder="72.40">
+        <button onclick="saveManual('WTI')">salvar</button>
+      </div>
+    </div>
+    <div class="oil" id="oilBRENT">
+      <button class="oil-edit" data-target="BRENT">✎</button>
+      <div class="oil-label">BRENT</div>
+      <div class="oil-price"><span class="val">—</span><span class="oil-change"></span></div>
+      <div class="oil-stale"></div>
+      <div class="oil-edit-form" id="editBRENT">
+        <input type="number" step="0.01" placeholder="76.10">
+        <button onclick="saveManual('BRENT')">salvar</button>
+      </div>
+    </div>
+  </div>
 </header>
 
 <div class="filters" id="filters"></div>
@@ -309,6 +387,8 @@ function renderFeed(){
         </div>
         <a class="headline" href="${a.url}" target="_blank" rel="noopener">${a.title}</a>
         <div class="source"><b>${a.domain || 'fonte'}</b></div>
+        <button class="analyze-btn" onclick="analyzeArticle(this, ${JSON.stringify(a.title)}, ${JSON.stringify(a.domain||'')})">apurar impacto ⚡</button>
+        <div class="analysis-box"></div>
       </div>
     </div>`;
   }).join('');
@@ -344,6 +424,99 @@ updateClock();
 setInterval(updateClock, 30000);
 loadAll();
 setInterval(loadAll, 15 * 60 * 1000);
+
+// ---- Preço do petróleo (WTI / Brent) ----
+const OIL_TICKERS = { WTI:'CL=F', BRENT:'BZ=F' };
+
+function renderOil(key, price, changePct, stale, sourceLabel){
+  const box = document.getElementById('oil' + key);
+  box.querySelector('.val').textContent = price != null ? `$${price.toFixed(2)}` : '—';
+  const chEl = box.querySelector('.oil-change');
+  if(changePct != null){
+    chEl.textContent = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
+    chEl.className = 'oil-change ' + (changePct >= 0 ? 'up' : 'down');
+  } else {
+    chEl.textContent = '';
+  }
+  box.querySelector('.oil-stale').textContent = stale;
+}
+
+async function fetchOilPrice(key){
+  const symbol = OIL_TICKERS[key];
+  try{
+    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`);
+    if(!res.ok) throw new Error('http ' + res.status);
+    const data = await res.json();
+    const meta = data.chart.result[0].meta;
+    const price = meta.regularMarketPrice;
+    const prevClose = meta.previousClose || meta.chartPreviousClose;
+    const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : null;
+    renderOil(key, price, changePct, 'ao vivo · Yahoo Finance');
+    localStorage.setItem('oil_' + key, JSON.stringify({price, changePct, ts: Date.now(), auto:true}));
+  }catch(e){
+    // fonte automática bloqueada: usa último valor manual salvo, se houver
+    const saved = localStorage.getItem('oil_' + key);
+    if(saved){
+      const s = JSON.parse(saved);
+      const ageH = Math.round((Date.now() - s.ts) / 3600000);
+      renderOil(key, s.price, s.changePct, s.auto ? `sem conexão · último valor há ${ageH}h` : `inserido manualmente há ${ageH}h`);
+    } else {
+      renderOil(key, null, null, 'auto indisponível · toque em ✎ para inserir');
+    }
+  }
+}
+
+function saveManual(key){
+  const input = document.querySelector('#edit' + key + ' input');
+  const price = parseFloat(input.value);
+  if(!price) return;
+  localStorage.setItem('oil_' + key, JSON.stringify({price, changePct:null, ts: Date.now(), auto:false}));
+  renderOil(key, price, null, 'inserido manualmente agora');
+  document.getElementById('edit' + key).classList.remove('show');
+}
+
+document.querySelectorAll('.oil-edit').forEach(btn => {
+  btn.onclick = () => {
+    document.getElementById('edit' + btn.dataset.target).classList.toggle('show');
+  };
+});
+
+function loadOilPrices(){
+  fetchOilPrice('WTI');
+  fetchOilPrice('BRENT');
+}
+loadOilPrices();
+setInterval(loadOilPrices, 15 * 60 * 1000);
+
+// ---- Apuração de impacto por IA (via Cloudflare Worker próprio) ----
+// Troque pela URL do seu Worker depois de publicá-lo (passo a passo enviado no chat).
+const AI_WORKER_URL = 'https://radar-ia.reginaldotenorio01.workers.dev';
+
+async function analyzeArticle(btn, title, domain){
+  const box = btn.nextElementSibling;
+  box.className = 'analysis-box show';
+
+  if(AI_WORKER_URL === 'COLE_AQUI_A_URL_DO_SEU_WORKER'){
+    box.innerHTML = '<span class="loading-line">Configure a URL do seu Worker no código (AI_WORKER_URL) pra ativar a apuração por IA.</span>';
+    return;
+  }
+
+  btn.disabled = true;
+  box.innerHTML = '<span class="loading-line">apurando…</span>';
+  try{
+    const res = await fetch(AI_WORKER_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title, domain })
+    });
+    const data = await res.json();
+    box.textContent = data.analysis || 'Não foi possível apurar agora.';
+  }catch(e){
+    box.innerHTML = '<span class="loading-line">Falha ao conectar no serviço de análise. Tente de novo em instantes.</span>';
+  }
+  btn.disabled = false;
+  btn.textContent = 'reapurar ⚡';
+}
 </script>
 
 </body>
