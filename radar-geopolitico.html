@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Radar Geopolítico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#13161c;
+    --panel:#1b1f28;
+    --panel-2:#20242f;
+    --line:#2c3140;
+    --paper:#eee9de;
+    --paper-dim:#a8a49a;
+    --amber:#d69a3c;
+    --crude:#8a5a2b;
+    --alert:#c1443c;
+    --steel:#5b83a6;
+    --sage:#6f8f6a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--ink);color:var(--paper);font-family:'Inter',sans-serif;}
+  body{padding-bottom:60px;}
+
+  header{
+    padding:22px 18px 16px;
+    border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:20;
+    background:linear-gradient(180deg, var(--ink) 80%, rgba(19,22,28,0));
+    backdrop-filter:blur(6px);
+  }
+  .masthead{display:flex; align-items:baseline; justify-content:space-between; gap:10px;}
+  h1{
+    font-family:'Source Serif 4', serif;
+    font-weight:700;
+    font-size:26px;
+    letter-spacing:-0.01em;
+    margin:0;
+    color:var(--paper);
+  }
+  .clock{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--paper-dim);
+    text-align:right;
+    line-height:1.5;
+  }
+  .clock b{color:var(--amber); font-weight:500;}
+  .subhead{
+    font-size:13px;
+    color:var(--paper-dim);
+    margin-top:6px;
+    max-width:60ch;
+    line-height:1.5;
+  }
+
+  .filters{
+    display:flex; gap:8px; overflow-x:auto; padding:14px 18px 4px;
+    -ms-overflow-style:none; scrollbar-width:none;
+  }
+  .filters::-webkit-scrollbar{display:none;}
+  .chip{
+    flex:0 0 auto;
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    font-weight:500;
+    padding:7px 13px;
+    border-radius:20px;
+    border:1px solid var(--line);
+    color:var(--paper-dim);
+    background:var(--panel);
+    white-space:nowrap;
+    display:flex; align-items:center; gap:6px;
+  }
+  .chip .dot{width:7px; height:7px; border-radius:50%;}
+  .chip.active{color:var(--ink); font-weight:600;}
+  .chip .count{opacity:.75; font-family:'IBM Plex Mono',monospace; font-size:11px;}
+
+  main{padding:6px 18px 10px;}
+
+  .status-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 2px 14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--paper-dim);
+  }
+  .refresh-btn{
+    background:none; border:1px solid var(--line); color:var(--paper);
+    font-family:'IBM Plex Mono', monospace; font-size:11px;
+    padding:6px 10px; border-radius:6px;
+  }
+  .refresh-btn:active{background:var(--panel-2);}
+
+  .feed{display:flex; flex-direction:column; gap:1px;}
+
+  .card{
+    display:flex; gap:0;
+    background:var(--panel);
+    border-left:3px solid var(--line);
+    padding:14px 14px 14px 13px;
+    margin-bottom:8px;
+    border-radius:4px;
+  }
+  .card .bar{width:0;}
+  .card-body{flex:1; min-width:0;}
+  .card-top{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:6px;
+    gap:8px;
+  }
+  .tag{
+    font-size:10.5px; font-weight:600; letter-spacing:0.02em;
+    padding:2px 8px; border-radius:10px;
+    font-family:'Inter',sans-serif;
+  }
+  .time{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    color:var(--paper-dim);
+    white-space:nowrap;
+  }
+  .headline{
+    font-family:'Source Serif 4', serif;
+    font-size:16.5px;
+    line-height:1.35;
+    font-weight:600;
+    color:var(--paper);
+    text-decoration:none;
+    display:block;
+  }
+  .source{
+    margin-top:6px;
+    font-size:12px;
+    color:var(--paper-dim);
+  }
+  .source b{color:#c7c2b6; font-weight:500;}
+
+  .empty, .loading{
+    text-align:center; padding:50px 20px; color:var(--paper-dim); font-size:13.5px; line-height:1.6;
+  }
+  .loading .spin{
+    width:22px; height:22px; margin:0 auto 14px;
+    border:2px solid var(--line); border-top-color:var(--amber);
+    border-radius:50%; animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  footer{
+    padding:20px 18px 8px;
+    font-size:11px;
+    color:var(--paper-dim);
+    line-height:1.6;
+    border-top:1px solid var(--line);
+    margin-top:14px;
+  }
+  footer a{color:var(--steel);}
+
+  @media (min-width:640px){
+    header, main, footer{max-width:640px; margin:0 auto; width:100%;}
+    .filters{max-width:640px; margin:0 auto;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="masthead">
+    <h1>Radar Geopolítico</h1>
+    <div class="clock" id="clock">--:--<br><b id="clockDate">--</b></div>
+  </div>
+  <div class="subhead">Fatos que fazem preço: guerra, estreitos, petróleo, sanções e bancos centrais — direto das agências, sem edição humana.</div>
+</header>
+
+<div class="filters" id="filters"></div>
+
+<main>
+  <div class="status-row">
+    <span id="statusText">carregando…</span>
+    <button class="refresh-btn" id="refreshBtn">atualizar agora</button>
+  </div>
+  <div class="feed" id="feed">
+    <div class="loading"><div class="spin"></div>buscando despachos nas últimas 48h…</div>
+  </div>
+</main>
+
+<footer>
+  Fonte: GDELT Project (agregador global de notícias, atualizado a cada 15 min pelo GDELT). Classificação por categoria é automática, por palavra-chave — confira sempre a fonte original antes de operar em cima de uma notícia. Atualiza sozinho a cada 15 minutos enquanto o app estiver aberto.
+</footer>
+
+<script>
+const CATEGORIES = [
+  { id:'guerra',   label:'Guerra & Conflito',   color:'var(--alert)', dotColor:'#c1443c',
+    query:'(war OR invasion OR "military strike" OR ceasefire OR offensive OR airstrike)' },
+  { id:'estreitos',label:'Estreitos & Rotas',    color:'var(--steel)', dotColor:'#5b83a6',
+    query:'(Hormuz OR "strait of" OR Suez OR "shipping lane" OR blockade OR "Red Sea shipping")' },
+  { id:'petroleo', label:'Petróleo & Energia',   color:'var(--amber)', dotColor:'#d69a3c',
+    query:'(OPEC OR "oil price" OR "crude oil" OR "oil supply" OR pipeline OR "natural gas supply")' },
+  { id:'sancoes',  label:'Sanções & Comércio',   color:'var(--crude)', dotColor:'#8a5a2b',
+    query:'(sanctions OR embargo OR tariffs OR "export ban" OR "trade restrictions")' },
+  { id:'bancos',   label:'Bancos Centrais',      color:'var(--sage)', dotColor:'#6f8f6a',
+    query:'(Fed OR "Federal Reserve" OR "interest rate decision" OR "central bank" OR ECB)' },
+];
+
+let allArticles = [];
+let activeFilters = new Set(CATEGORIES.map(c => c.id));
+let jsonpCounter = 0;
+
+function jsonp(url){
+  return new Promise((resolve, reject) => {
+    const cbName = 'gdeltCb' + (jsonpCounter++);
+    const script = document.createElement('script');
+    let done = false;
+    window[cbName] = (data) => {
+      done = true;
+      resolve(data);
+      cleanup();
+    };
+    script.onerror = () => { if(!done){ reject(new Error('network')); cleanup(); } };
+    function cleanup(){
+      delete window[cbName];
+      script.remove();
+    }
+    script.src = url + '&callback=' + cbName;
+    document.body.appendChild(script);
+    setTimeout(() => { if(!done){ reject(new Error('timeout')); cleanup(); } }, 12000);
+  });
+}
+
+async function fetchCategory(cat){
+  const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=' +
+    encodeURIComponent(cat.query + ' sourcelang:english') +
+    '&mode=artlist&maxrecords=20&timespan=48h&sort=datedesc&format=json';
+  try{
+    const data = await jsonp(url);
+    const arts = (data && data.articles) || [];
+    return arts.map(a => ({
+      title: a.title,
+      url: a.url,
+      domain: a.domain,
+      seendate: a.seendate,
+      catId: cat.id
+    }));
+  }catch(e){
+    return [];
+  }
+}
+
+function parseGdeltDate(s){
+  // format YYYYMMDDTHHMMSSZ
+  if(!s || s.length < 15) return new Date();
+  const y = s.slice(0,4), mo = s.slice(4,6), d = s.slice(6,8);
+  const h = s.slice(9,11), mi = s.slice(11,13), se = s.slice(13,15);
+  return new Date(`${y}-${mo}-${d}T${h}:${mi}:${se}Z`);
+}
+
+function timeAgo(date){
+  const diffMs = Date.now() - date.getTime();
+  const mins = Math.round(diffMs/60000);
+  if(mins < 1) return 'agora';
+  if(mins < 60) return `${mins} min atrás`;
+  const hrs = Math.round(mins/60);
+  if(hrs < 24) return `${hrs}h atrás`;
+  const days = Math.round(hrs/24);
+  return `${days}d atrás`;
+}
+
+function renderFilters(){
+  const el = document.getElementById('filters');
+  el.innerHTML = '';
+  CATEGORIES.forEach(cat => {
+    const count = allArticles.filter(a => a.catId === cat.id).length;
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (activeFilters.has(cat.id) ? ' active' : '');
+    chip.style.background = activeFilters.has(cat.id) ? cat.color : 'var(--panel)';
+    chip.innerHTML = `<span class="dot" style="background:${cat.dotColor}"></span>${cat.label} <span class="count">${count}</span>`;
+    chip.onclick = () => {
+      if(activeFilters.has(cat.id)) activeFilters.delete(cat.id);
+      else activeFilters.add(cat.id);
+      renderFilters();
+      renderFeed();
+    };
+    el.appendChild(chip);
+  });
+}
+
+function renderFeed(){
+  const feed = document.getElementById('feed');
+  const items = allArticles
+    .filter(a => activeFilters.has(a.catId))
+    .sort((a,b) => b.date - a.date);
+
+  if(items.length === 0){
+    feed.innerHTML = '<div class="empty">Nada nas últimas 48h para os filtros marcados.<br>Isso também é informação — dia calmo.</div>';
+    return;
+  }
+
+  feed.innerHTML = items.slice(0, 80).map(a => {
+    const cat = CATEGORIES.find(c => c.id === a.catId);
+    return `
+    <div class="card" style="border-left-color:${cat.dotColor}">
+      <div class="card-body">
+        <div class="card-top">
+          <span class="tag" style="background:${cat.dotColor}22; color:${cat.dotColor}">${cat.label}</span>
+          <span class="time">${timeAgo(a.date)}</span>
+        </div>
+        <a class="headline" href="${a.url}" target="_blank" rel="noopener">${a.title}</a>
+        <div class="source"><b>${a.domain || 'fonte'}</b></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadAll(){
+  document.getElementById('statusText').textContent = 'buscando despachos…';
+  const results = await Promise.all(CATEGORIES.map(fetchCategory));
+  const merged = [];
+  const seen = new Set();
+  results.flat().forEach(a => {
+    if(!a.url || seen.has(a.url)) return;
+    seen.add(a.url);
+    merged.push({ ...a, date: parseGdeltDate(a.seendate) });
+  });
+  allArticles = merged;
+  renderFilters();
+  renderFeed();
+  const now = new Date();
+  document.getElementById('statusText').textContent =
+    `${allArticles.length} despachos · atualizado às ${now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
+}
+
+function updateClock(){
+  const now = new Date();
+  document.getElementById('clock').innerHTML =
+    now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) +
+    '<br><b>' + now.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) + '</b>';
+}
+
+document.getElementById('refreshBtn').onclick = loadAll;
+updateClock();
+setInterval(updateClock, 30000);
+loadAll();
+setInterval(loadAll, 15 * 60 * 1000);
+</script>
+
+</body>
+</html>
