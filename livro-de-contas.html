@@ -8,17 +8,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Space+Mono:wght@400;700&display=swap');
 
 :root{
-  --ink-cover: #1B2430;
-  --ink-cover-2: #232E3D;
-  --paper: #EFE8D6;
-  --paper-2: #F7F3E7;
-  --paper-line: #C9BFA0;
-  --ink-text: #2B2A28;
-  --ink-muted: #746D5D;
-  --brass: #C98A3E;
-  --brass-dark: #A96F2C;
-  --green: #2F6B4F;
-  --red: #A63A2E;
+  --ink-cover: #20302A;
+  --ink-cover-2: #2A3D35;
+  --paper: #F3ECDA;
+  --paper-2: #FAF5E8;
+  --paper-line: #D8C9A3;
+  --ink-text: #2B2A22;
+  --ink-muted: #7A7256;
+  --copper: #C1663B;
+  --copper-dark: #A34F2A;
+  --green: #3E7D5A;
+  --red: #B23A2E;
 }
 
 *{ box-sizing: border-box; }
@@ -80,7 +80,7 @@ h1,h2,h3, .display{
   padding: 2px 10px;
   line-height:1;
 }
-.month-nav button:hover{ color: var(--brass); }
+.month-nav button:hover{ color: var(--copper); }
 .month-label{
   font-family:'Fraunces', serif;
   font-weight:600;
@@ -124,8 +124,8 @@ h1,h2,h3, .display{
 
 .btn-add{
   margin-top:auto;
-  background: var(--brass);
-  color: var(--ink-cover);
+  background: var(--copper);
+  color: #fff;
   border:none;
   border-radius:6px;
   padding:13px 16px;
@@ -134,7 +134,19 @@ h1,h2,h3, .display{
   font-size:0.95rem;
   cursor:pointer;
 }
-.btn-add:hover{ background: var(--brass-dark); }
+.btn-add:hover{ background: var(--copper-dark); }
+
+.btn-toggle-view{
+  background: none;
+  border: 1px solid rgba(255,255,255,0.25);
+  color: var(--paper);
+  border-radius:6px;
+  padding:9px 10px;
+  font-family:'Space Mono', monospace;
+  font-size:0.8rem;
+  cursor:pointer;
+}
+.btn-toggle-view:hover{ border-color: var(--copper); color: var(--copper); }
 
 /* ---- Main paper ---- */
 .paper{
@@ -305,8 +317,8 @@ h1,h2,h3, .display{
   font-size:0.92rem;
   cursor:pointer;
 }
-.btn-save{ background: var(--brass); color: var(--ink-cover); }
-.btn-save:hover{ background: var(--brass-dark); }
+.btn-save{ background: var(--copper); color: #fff; }
+.btn-save:hover{ background: var(--copper-dark); }
 .btn-cancel{ background:none; border:1px solid var(--paper-line) !important; color: var(--ink-text); }
 .btn-delete{ background:none; border:1px solid var(--red) !important; color: var(--red); }
 
@@ -319,11 +331,47 @@ h1,h2,h3, .display{
 }
 .toast.show{ opacity:1; }
 
+.year-row{
+  display:grid;
+  grid-template-columns: 100px 1fr 120px;
+  gap:14px;
+  align-items:center;
+  padding: 13px 6px;
+  border-bottom: 1px solid var(--paper-line);
+  cursor:pointer;
+}
+.year-row:hover{ background: var(--paper-2); }
+.year-row-month{ font-family:'Fraunces', serif; font-size:0.95rem; }
+.bar-track{
+  height:8px;
+  background: rgba(43,42,34,0.08);
+  border-radius:4px;
+  overflow:hidden;
+}
+.bar-fill{ height:100%; border-radius:4px; }
+.bar-fill.pos{ background: var(--green); }
+.bar-fill.neg{ background: var(--red); }
+.year-row-saldo{ text-align:right; font-size:0.95rem; }
+.year-row-saldo.pos{ color: var(--green); }
+.year-row-saldo.neg{ color: var(--red); }
+.year-total{
+  display:flex;
+  justify-content:space-between;
+  padding: 16px 6px 4px;
+  margin-top: 6px;
+  border-top: 2px solid var(--ink-text);
+  font-family:'Fraunces', serif;
+  font-size:1.1rem;
+}
+.year-total .val.pos{ color: var(--green); }
+.year-total .val.neg{ color: var(--red); }
+
 @media (max-width: 760px){
   .app{ flex-direction:column; }
   .cover{ width:auto; }
   .paper{ padding:28px 20px 50px; box-shadow:none; }
   .ledger-row{ grid-template-columns: 60px 1fr 100px 22px; gap:8px; }
+  .year-row{ grid-template-columns: 80px 1fr 100px; gap:8px; }
 }
 </style>
 </head>
@@ -337,13 +385,15 @@ h1,h2,h3, .display{
     </div>
 
     <div class="month-nav">
-      <button id="prevMonth" aria-label="Mês anterior">‹</button>
+      <button id="prevMonth" aria-label="Anterior">‹</button>
       <div class="month-label" id="monthLabel">—</div>
-      <button id="nextMonth" aria-label="Próximo mês">›</button>
+      <button id="nextMonth" aria-label="Próximo">›</button>
     </div>
 
+    <button class="btn-toggle-view" id="toggleView">Ver resumo do ano</button>
+
     <div class="saldo-block">
-      <div class="saldo-label">Saldo acumulado até este mês</div>
+      <div class="saldo-label" id="saldoLabel">Saldo acumulado até este mês</div>
       <div class="saldo-value" id="saldoAcumulado">R$ 0,00</div>
     </div>
 
@@ -356,7 +406,7 @@ h1,h2,h3, .display{
     <div class="paper-header">
       <div>
         <h2 class="paper-month" id="paperMonth">—</h2>
-        <div class="stat-row">
+        <div class="stat-row" id="paperHeaderStats">
           <div class="stat">Recebimentos<span id="statReceitas">R$ 0,00</span></div>
           <div class="stat">Contas<span id="statDespesas">R$ 0,00</span></div>
         </div>
@@ -373,6 +423,12 @@ h1,h2,h3, .display{
       Nada lançado neste mês ainda.
       <br>
       <button id="emptyAdd">Adicionar o primeiro lançamento</button>
+    </div>
+
+    <div id="yearRows" hidden></div>
+    <div class="year-total" id="yearTotal" hidden>
+      <span>Saldo do ano</span>
+      <span class="val" id="yearTotalVal">R$ 0,00</span>
     </div>
   </main>
 </div>
@@ -392,6 +448,11 @@ h1,h2,h3, .display{
         <option>Casa</option>
         <option>Escola</option>
         <option>Aluguel</option>
+        <option>Mercado</option>
+        <option>Transporte</option>
+        <option>Saúde</option>
+        <option>Lazer</option>
+        <option>Internet/Telefone</option>
         <option>Outras contas</option>
       </select>
     </div>
@@ -423,12 +484,14 @@ h1,h2,h3, .display{
 
 <script>
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const DESPESA_CATS = ['Casa','Escola','Aluguel','Outras contas'];
+const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const DESPESA_CATS = ['Casa','Escola','Aluguel','Mercado','Transporte','Saúde','Lazer','Internet/Telefone','Outras contas'];
 
 let state = {
   transactions: [],
   viewYear: new Date().getFullYear(),
   viewMonth: new Date().getMonth(),
+  viewMode: 'mes', // 'mes' | 'ano'
   editingId: null,
 };
 
@@ -485,33 +548,47 @@ function getAccumulatedBalance(y,m){
   return total;
 }
 
-function getCategoryTotals(y,m){
-  const entries = getMonthTransactions(y,m);
+function getCategoryTotalsForEntries(entries){
   const totals = {};
   DESPESA_CATS.forEach(c=> totals[c]=0);
   entries.forEach(t=>{ if(t.type==='conta') totals[t.category] = (totals[t.category]||0) + t.value; });
   return totals;
 }
 
+function getYearTransactions(y){
+  return state.transactions.filter(t => new Date(t.date+'T00:00:00').getFullYear() === y);
+}
+
+function getYearTotals(y){
+  const monthly = [];
+  let receitas = 0, despesas = 0;
+  for(let m=0; m<12; m++){
+    const mt = getMonthTotals(y,m);
+    monthly.push(mt);
+    receitas += mt.receitas;
+    despesas += mt.despesas;
+  }
+  return { receitas, despesas, saldo: receitas-despesas, monthly };
+}
+
 function render(){
-  const { viewYear:y, viewMonth:m } = state;
-  document.getElementById('monthLabel').textContent = MESES[m] + ' ' + y;
-  document.getElementById('paperMonth').textContent = MESES[m] + ' ' + y;
+  const { viewYear:y, viewMonth:m, viewMode } = state;
 
-  const { receitas, despesas, saldo, entries } = getMonthTotals(y,m);
-  document.getElementById('statReceitas').textContent = fmtMoney(receitas);
-  document.getElementById('statDespesas').textContent = fmtMoney(despesas);
+  document.getElementById('toggleView').textContent = viewMode === 'ano' ? 'Ver mês' : 'Ver resumo do ano';
+  document.getElementById('monthLabel').textContent = viewMode === 'ano' ? String(y) : (MESES[m] + ' ' + y);
 
-  const saldoMesEl = document.getElementById('saldoMes');
-  saldoMesEl.textContent = fmtMoney(saldo);
-  saldoMesEl.className = 'val ' + (saldo >= 0 ? 'pos' : 'neg');
-
-  const acumulado = getAccumulatedBalance(y,m);
+  // sidebar: accumulated balance + category totals cover the whole year in 'ano' mode
+  const accumMonth = viewMode === 'ano' ? 11 : m;
+  document.getElementById('saldoLabel').textContent = viewMode === 'ano'
+    ? 'Saldo acumulado até o fim do ano'
+    : 'Saldo acumulado até este mês';
+  const acumulado = getAccumulatedBalance(y, accumMonth);
   const acumEl = document.getElementById('saldoAcumulado');
   acumEl.textContent = fmtMoney(acumulado);
   acumEl.className = 'saldo-value ' + (acumulado >= 0 ? 'pos' : 'neg');
 
-  const catTotals = getCategoryTotals(y,m);
+  const catSourceEntries = viewMode === 'ano' ? getYearTransactions(y) : getMonthTransactions(y,m);
+  const catTotals = getCategoryTotalsForEntries(catSourceEntries);
   const catEl = document.getElementById('catTotals');
   catEl.innerHTML = '';
   DESPESA_CATS.forEach(c=>{
@@ -521,10 +598,27 @@ function render(){
     catEl.appendChild(row);
   });
 
+  if(viewMode === 'ano') renderYearView(y); else renderMonthView(y,m);
+}
+
+function renderMonthView(y,m){
+  document.getElementById('paperMonth').textContent = MESES[m] + ' ' + y;
+  document.getElementById('paperHeaderStats').hidden = false;
+
+  const { receitas, despesas, saldo, entries } = getMonthTotals(y,m);
+  document.getElementById('statReceitas').textContent = fmtMoney(receitas);
+  document.getElementById('statDespesas').textContent = fmtMoney(despesas);
+
+  const saldoMesEl = document.getElementById('saldoMes');
+  saldoMesEl.textContent = fmtMoney(saldo);
+  saldoMesEl.className = 'val ' + (saldo >= 0 ? 'pos' : 'neg');
+
   const ledgerEl = document.getElementById('ledgerRows');
   ledgerEl.innerHTML = '';
+  ledgerEl.hidden = false;
+  document.getElementById('yearRows').hidden = true;
+  document.getElementById('yearTotal').hidden = true;
   document.getElementById('emptyState').hidden = entries.length > 0;
-  ledgerEl.hidden = entries.length === 0;
 
   entries.forEach(t=>{
     const row = document.createElement('div');
@@ -552,6 +646,48 @@ function render(){
       deleteTransaction(btn.dataset.id);
     });
   });
+}
+
+function renderYearView(y){
+  document.getElementById('paperMonth').textContent = 'Resumo de ' + y;
+  document.getElementById('paperHeaderStats').hidden = true;
+
+  const { receitas, despesas, saldo, monthly } = getYearTotals(y);
+  const saldoMesEl = document.getElementById('saldoMes');
+  saldoMesEl.textContent = fmtMoney(saldo);
+  saldoMesEl.className = 'val ' + (saldo >= 0 ? 'pos' : 'neg');
+
+  document.getElementById('ledgerRows').hidden = true;
+  document.getElementById('emptyState').hidden = true;
+
+  const maxAbs = Math.max(1, ...monthly.map(mt => Math.abs(mt.saldo)));
+  const yearEl = document.getElementById('yearRows');
+  yearEl.innerHTML = '';
+  yearEl.hidden = false;
+
+  monthly.forEach((mt, idx)=>{
+    const pct = Math.round((Math.abs(mt.saldo) / maxAbs) * 100);
+    const isPos = mt.saldo >= 0;
+    const row = document.createElement('div');
+    row.className = 'year-row';
+    row.innerHTML = `
+      <div class="year-row-month">${MESES_ABREV[idx]}</div>
+      <div class="bar-track"><div class="bar-fill ${isPos?'pos':'neg'}" style="width:${pct}%"></div></div>
+      <div class="year-row-saldo ${isPos?'pos':'neg'}">${fmtMoney(mt.saldo)}</div>
+    `;
+    row.addEventListener('click', ()=>{
+      state.viewMode = 'mes';
+      state.viewMonth = idx;
+      state.viewYear = y;
+      render();
+    });
+    yearEl.appendChild(row);
+  });
+
+  const totalEl = document.getElementById('yearTotal');
+  totalEl.hidden = false;
+  document.getElementById('yearTotalVal').textContent = fmtMoney(saldo);
+  document.getElementById('yearTotalVal').className = 'val ' + (saldo >= 0 ? 'pos' : 'neg');
 }
 
 function escapeHtml(s){
@@ -646,15 +782,26 @@ function deleteTransaction(id){
   render();
 }
 
-// ---- Month navigation ----
+// ---- Month / year navigation ----
 document.getElementById('prevMonth').addEventListener('click', ()=>{
-  state.viewMonth--;
-  if(state.viewMonth < 0){ state.viewMonth = 11; state.viewYear--; }
+  if(state.viewMode === 'ano'){ state.viewYear--; }
+  else{
+    state.viewMonth--;
+    if(state.viewMonth < 0){ state.viewMonth = 11; state.viewYear--; }
+  }
   render();
 });
 document.getElementById('nextMonth').addEventListener('click', ()=>{
-  state.viewMonth++;
-  if(state.viewMonth > 11){ state.viewMonth = 0; state.viewYear++; }
+  if(state.viewMode === 'ano'){ state.viewYear++; }
+  else{
+    state.viewMonth++;
+    if(state.viewMonth > 11){ state.viewMonth = 0; state.viewYear++; }
+  }
+  render();
+});
+
+document.getElementById('toggleView').addEventListener('click', ()=>{
+  state.viewMode = state.viewMode === 'ano' ? 'mes' : 'ano';
   render();
 });
 
