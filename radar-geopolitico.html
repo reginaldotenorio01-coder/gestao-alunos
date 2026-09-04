@@ -285,47 +285,32 @@ const CATEGORIES = [
 
 let allArticles = [];
 let activeFilters = new Set(CATEGORIES.map(c => c.id));
-let jsonpCounter = 0;
-
-function jsonp(url){
-  return new Promise((resolve, reject) => {
-    const cbName = 'gdeltCb' + (jsonpCounter++);
-    const script = document.createElement('script');
-    let done = false;
-    window[cbName] = (data) => {
-      done = true;
-      resolve(data);
-      cleanup();
-    };
-    script.onerror = () => { if(!done){ reject(new Error('network')); cleanup(); } };
-    function cleanup(){
-      delete window[cbName];
-      script.remove();
-    }
-    script.src = url + '&callback=' + cbName;
-    document.body.appendChild(script);
-    setTimeout(() => { if(!done){ reject(new Error('timeout')); cleanup(); } }, 12000);
-  });
-}
 
 async function fetchCategory(cat){
   const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=' +
     encodeURIComponent(cat.query + ' sourcelang:english') +
-    '&mode=artlist&maxrecords=20&timespan=48h&sort=datedesc&format=jsonp';
+    '&mode=artlist&maxrecords=20&timespan=48h&sort=datedesc&format=json';
   try{
-    const data = await jsonp(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if(!res.ok) throw new Error('http ' + res.status);
+    const data = await res.json();
     const arts = (data && data.articles) || [];
-    return arts.map(a => ({
+    return { ok:true, articles: arts.map(a => ({
       title: a.title,
       url: a.url,
       domain: a.domain,
       seendate: a.seendate,
       catId: cat.id
-    }));
+    })) };
   }catch(e){
-    return [];
+    return { ok:false, error: e.message, articles: [] };
   }
 }
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
 function parseGdeltDate(s){
   // format YYYYMMDDTHHMMSSZ
@@ -396,20 +381,30 @@ function renderFeed(){
 
 async function loadAll(){
   document.getElementById('statusText').textContent = 'buscando despachos…';
-  const results = await Promise.all(CATEGORIES.map(fetchCategory));
   const merged = [];
   const seen = new Set();
-  results.flat().forEach(a => {
-    if(!a.url || seen.has(a.url)) return;
-    seen.add(a.url);
-    merged.push({ ...a, date: parseGdeltDate(a.seendate) });
-  });
+  let anyError = false;
+  for(const cat of CATEGORIES){
+    const result = await fetchCategory(cat);
+    if(!result.ok) anyError = true;
+    result.articles.forEach(a => {
+      if(!a.url || seen.has(a.url)) return;
+      seen.add(a.url);
+      merged.push({ ...a, date: parseGdeltDate(a.seendate) });
+    });
+    await sleep(400); // espaça as chamadas pra não estourar limite da GDELT
+  }
   allArticles = merged;
   renderFilters();
   renderFeed();
   const now = new Date();
-  document.getElementById('statusText').textContent =
-    `${allArticles.length} despachos · atualizado às ${now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
+  if(allArticles.length === 0 && anyError){
+    document.getElementById('statusText').textContent =
+      `fonte indisponível no momento · tenta "atualizar agora" em instantes`;
+  } else {
+    document.getElementById('statusText').textContent =
+      `${allArticles.length} despachos · atualizado às ${now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
+  }
 }
 
 function updateClock(){
