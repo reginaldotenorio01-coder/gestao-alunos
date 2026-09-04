@@ -400,14 +400,15 @@ function renderFeed(){
   const feed = document.getElementById('feed');
   const items = allArticles
     .filter(a => activeFilters.has(a.catId))
-    .sort((a,b) => b.date - a.date);
+    .sort((a,b) => b.date - a.date)
+    .slice(0, 80);
 
   if(items.length === 0){
     feed.innerHTML = '<div class="empty">Nada nas últimas 48h para os filtros marcados.<br>Isso também é informação — dia calmo.</div>';
     return;
   }
 
-  feed.innerHTML = items.slice(0, 80).map(a => {
+  feed.innerHTML = items.map((a, i) => {
     const cat = CATEGORIES.find(c => c.id === a.catId);
     return `
     <div class="card" style="border-left-color:${cat.dotColor}">
@@ -418,11 +419,18 @@ function renderFeed(){
         </div>
         <a class="headline" href="${a.url}" target="_blank" rel="noopener">${a.title}</a>
         <div class="source"><b>${a.domain || 'fonte'}</b></div>
-        <button class="analyze-btn" onclick="analyzeArticle(this, ${JSON.stringify(a.title)}, ${JSON.stringify(a.domain||'')})">apurar impacto ⚡</button>
+        <button class="analyze-btn" data-idx="${i}">apurar impacto ⚡</button>
         <div class="analysis-box"></div>
       </div>
     </div>`;
   }).join('');
+
+  // liga os botões por código (evita quebrar o HTML quando a manchete tem aspas)
+  feed.querySelectorAll('.analyze-btn').forEach(btn => {
+    const idx = parseInt(btn.dataset.idx, 10);
+    const article = items[idx];
+    btn.onclick = () => analyzeArticle(btn, article.title, article.domain || '');
+  });
 }
 
 async function loadAll(){
