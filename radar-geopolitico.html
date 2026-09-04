@@ -403,33 +403,67 @@ function renderFeed(){
     .sort((a,b) => b.date - a.date)
     .slice(0, 80);
 
+  feed.innerHTML = '';
+
   if(items.length === 0){
     feed.innerHTML = '<div class="empty">Nada nas últimas 48h para os filtros marcados.<br>Isso também é informação — dia calmo.</div>';
     return;
   }
 
-  feed.innerHTML = items.map((a, i) => {
+  items.forEach(a => {
     const cat = CATEGORIES.find(c => c.id === a.catId);
-    return `
-    <div class="card" style="border-left-color:${cat.dotColor}">
-      <div class="card-body">
-        <div class="card-top">
-          <span class="tag" style="background:${cat.dotColor}22; color:${cat.dotColor}">${cat.label}</span>
-          <span class="time">${timeAgo(a.date)}</span>
-        </div>
-        <a class="headline" href="${a.url}" target="_blank" rel="noopener">${a.title}</a>
-        <div class="source"><b>${a.domain || 'fonte'}</b></div>
-        <button class="analyze-btn" data-idx="${i}">apurar impacto ⚡</button>
-        <div class="analysis-box"></div>
-      </div>
-    </div>`;
-  }).join('');
 
-  // liga os botões por código (evita quebrar o HTML quando a manchete tem aspas)
-  feed.querySelectorAll('.analyze-btn').forEach(btn => {
-    const idx = parseInt(btn.dataset.idx, 10);
-    const article = items[idx];
-    btn.onclick = () => analyzeArticle(btn, article.title, article.domain || '');
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.borderLeftColor = cat.dotColor;
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const top = document.createElement('div');
+    top.className = 'card-top';
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.style.background = cat.dotColor + '22';
+    tag.style.color = cat.dotColor;
+    tag.textContent = cat.label;
+    const time = document.createElement('span');
+    time.className = 'time';
+    time.textContent = timeAgo(a.date);
+    top.appendChild(tag);
+    top.appendChild(time);
+
+    const headline = document.createElement('a');
+    headline.className = 'headline';
+    headline.href = a.url;
+    headline.target = '_blank';
+    headline.rel = 'noopener';
+    headline.textContent = a.title; // textContent escapa qualquer caractere especial com segurança
+
+    const source = document.createElement('div');
+    source.className = 'source';
+    const b = document.createElement('b');
+    b.textContent = a.domain || 'fonte';
+    source.appendChild(b);
+
+    const analyzeBtn = document.createElement('button');
+    analyzeBtn.className = 'analyze-btn';
+    analyzeBtn.textContent = 'apurar impacto ⚡';
+
+    const analysisBox = document.createElement('div');
+    analysisBox.className = 'analysis-box';
+
+    analyzeBtn.addEventListener('click', () => {
+      analyzeArticle(analyzeBtn, analysisBox, a.title, a.domain || '');
+    });
+
+    body.appendChild(top);
+    body.appendChild(headline);
+    body.appendChild(source);
+    body.appendChild(analyzeBtn);
+    body.appendChild(analysisBox);
+    card.appendChild(body);
+    feed.appendChild(card);
   });
 }
 
@@ -554,8 +588,7 @@ setInterval(loadOilPrices, 15 * 60 * 1000);
 // Troque pela URL do seu Worker depois de publicá-lo (passo a passo enviado no chat).
 const AI_WORKER_URL = 'https://radar-ia.reginaldotenorio01.workers.dev';
 
-async function analyzeArticle(btn, title, domain){
-  const box = btn.nextElementSibling;
+async function analyzeArticle(btn, box, title, domain){
   box.className = 'analysis-box show';
 
   if(AI_WORKER_URL === 'COLE_AQUI_A_URL_DO_SEU_WORKER'){
