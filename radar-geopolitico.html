@@ -272,16 +272,62 @@
 <script>
 const CATEGORIES = [
   { id:'guerra',   label:'Guerra & Conflito',   color:'var(--alert)', dotColor:'#c1443c',
-    query:'(war OR invasion OR "military strike" OR ceasefire OR offensive OR airstrike)' },
+    query:'(war OR invasion OR "military strike" OR ceasefire OR offensive OR airstrike)',
+    keywords:['war','invasion','strike','ceasefire','offensive','airstrike','troops','military','attack','conflict'] },
   { id:'estreitos',label:'Estreitos & Rotas',    color:'var(--steel)', dotColor:'#5b83a6',
-    query:'(Hormuz OR "strait of" OR Suez OR "shipping lane" OR blockade OR "Red Sea shipping")' },
+    query:'(Hormuz OR "strait of" OR Suez OR "shipping lane" OR blockade OR "Red Sea shipping")',
+    keywords:['hormuz','strait','suez','shipping','blockade','canal','tanker','red sea'] },
   { id:'petroleo', label:'Petróleo & Energia',   color:'var(--amber)', dotColor:'#d69a3c',
-    query:'(OPEC OR "oil price" OR "crude oil" OR "oil supply" OR pipeline OR "natural gas supply")' },
+    query:'(OPEC OR "oil price" OR "crude oil" OR "oil supply" OR pipeline OR "natural gas supply")',
+    keywords:['opec','oil','crude','pipeline','gas supply','energy','refinery','barrel'] },
   { id:'sancoes',  label:'Sanções & Comércio',   color:'var(--crude)', dotColor:'#8a5a2b',
-    query:'(sanctions OR embargo OR tariffs OR "export ban" OR "trade restrictions")' },
+    query:'(sanctions OR embargo OR tariffs OR "export ban" OR "trade restrictions")',
+    keywords:['sanction','embargo','tariff','export ban','trade restriction','trade war'] },
   { id:'bancos',   label:'Bancos Centrais',      color:'var(--sage)', dotColor:'#6f8f6a',
-    query:'(Fed OR "Federal Reserve" OR "interest rate decision" OR "central bank" OR ECB)' },
+    query:'(Fed OR "Federal Reserve" OR "interest rate decision" OR "central bank" OR ECB)',
+    keywords:['federal reserve',' fed ','interest rate','central bank','ecb','rate hike','rate cut','powell'] },
 ];
+
+const RSS_FEEDS = [
+  'https://feeds.bbci.co.uk/news/world/rss.xml',
+  'https://www.aljazeera.com/xml/rss/all.xml',
+];
+
+function classifyByKeywords(title){
+  const t = (' ' + title.toLowerCase() + ' ');
+  for(const cat of CATEGORIES){
+    if(cat.keywords.some(k => t.includes(k))) return cat.id;
+  }
+  return null;
+}
+
+async function fetchRSS(feedUrl){
+  const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(feedUrl);
+  try{
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(apiUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if(!res.ok) throw new Error('http ' + res.status);
+    const data = await res.json();
+    const items = (data && data.items) || [];
+    const out = [];
+    items.forEach(it => {
+      const catId = classifyByKeywords(it.title || '');
+      if(!catId) return;
+      out.push({
+        title: it.title,
+        url: it.link,
+        domain: (data.feed && data.feed.title) || 'fonte',
+        date: it.pubDate ? new Date(it.pubDate) : new Date(),
+        catId
+      });
+    });
+    return { ok:true, articles: out };
+  }catch(e){
+    return { ok:false, error: e.message, articles: [] };
+  }
+}
 
 let allArticles = [];
 let activeFilters = new Set(CATEGORIES.map(c => c.id));
@@ -383,10 +429,11 @@ async function loadAll(){
   document.getElementById('statusText').textContent = 'buscando despachos…';
   const merged = [];
   const seen = new Set();
-  let anyError = false;
+  let anySuccess = false;
+
   for(const cat of CATEGORIES){
     const result = await fetchCategory(cat);
-    if(!result.ok) anyError = true;
+    if(result.ok) anySuccess = true;
     result.articles.forEach(a => {
       if(!a.url || seen.has(a.url)) return;
       seen.add(a.url);
@@ -394,13 +441,25 @@ async function loadAll(){
     });
     await sleep(400); // espaça as chamadas pra não estourar limite da GDELT
   }
+
+  for(const feed of RSS_FEEDS){
+    const result = await fetchRSS(feed);
+    if(result.ok) anySuccess = true;
+    result.articles.forEach(a => {
+      if(!a.url || seen.has(a.url)) return;
+      seen.add(a.url);
+      merged.push(a);
+    });
+    await sleep(300);
+  }
+
   allArticles = merged;
   renderFilters();
   renderFeed();
   const now = new Date();
-  if(allArticles.length === 0 && anyError){
+  if(allArticles.length === 0 && !anySuccess){
     document.getElementById('statusText').textContent =
-      `fonte indisponível no momento · tenta "atualizar agora" em instantes`;
+      `fontes indisponíveis no momento · tenta "atualizar agora" em instantes`;
   } else {
     document.getElementById('statusText').textContent =
       `${allArticles.length} despachos · atualizado às ${now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
